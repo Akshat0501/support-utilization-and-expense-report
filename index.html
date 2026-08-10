@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project coordinators BI & Analytics</title>
+  
+  <!-- Modern Google Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- CSS Styles -->
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- External CDN Libraries: Chart.js & SheetJS -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="brand-section">
+      <div class="brand-icon">⚡</div>
+      <div class="brand-title">
+        <h1>Executive Project Portfolio Dashboard</h1>
+        <p>Project coordinators BI & Analytics</p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button class="btn btn-outline" id="btn-currency-toggle">
+        Currency: <strong id="currency-symbol-label">₹</strong>
+      </button>
+
+      <button class="btn btn-primary" id="btn-open-upload">
+        📁 Upload Excel / CSV Sheet
+      </button>
+    </div>
+  </header>
+
+  <!-- Global Filter Ribbon -->
+  <div class="filter-ribbon">
+    <div class="filter-group">
+      <span>Search:</span>
+      <input type="text" id="filter-search" class="filter-input" placeholder="Consultant, Client, Inv #..." />
+    </div>
+
+    <div class="filter-group">
+      <span>Month Report:</span>
+      <select id="filter-month" class="filter-select"><option value="All">All</option></select>
+    </div>
+
+    <div class="filter-group">
+      <span>Coordinator:</span>
+      <select id="filter-coordinator" class="filter-select"><option value="All">All</option></select>
+    </div>
+
+    <div class="filter-group">
+      <span>Technology:</span>
+      <select id="filter-tech" class="filter-select"><option value="All">All</option></select>
+    </div>
+
+    <div class="filter-group">
+      <span>Emp Type:</span>
+      <select id="filter-emp" class="filter-select"><option value="All">All</option></select>
+    </div>
+
+    <div class="filter-group">
+      <span>Channel:</span>
+      <select id="filter-channel" class="filter-select"><option value="All">All</option></select>
+    </div>
+
+    <div class="filter-group">
+      <span>Status:</span>
+      <select id="filter-status" class="filter-select"><option value="All">All</option></select>
+    </div>
+
+    <div class="filter-group">
+      <span>Total Payout Range:</span>
+      <select id="filter-value" class="filter-select">
+        <option value="All">All Tiers</option>
+        <option value="Below ₹1 Lakh">Below ₹1 Lakh</option>
+        <option value="₹1 Lakh – ₹1.2 Lakh">₹1 Lakh – ₹1.2 Lakh</option>
+        <option value="₹1.2 Lakh – ₹1.5 Lakh">₹1.2 Lakh – ₹1.5 Lakh</option>
+        <option value="₹1.5 Lakh – ₹2 Lakh">₹1.5 Lakh – ₹2 Lakh</option>
+        <option value="Above ₹2 Lakh">Above ₹2 Lakh</option>
+      </select>
+    </div>
+
+    <button id="btn-reset-filters" class="reset-filter-btn">✕ Reset Filters</button>
+  </div>
+
+  <!-- Navigation Tabs -->
+  <div class="nav-tabs-container">
+    <div class="nav-tabs">
+      <button class="nav-tab active" data-tab="overview">📊 Executive Overview</button>
+      <button class="nav-tab" data-tab="coordinators">👔 Coordinator & Value Range Matrix</button>
+      <button class="nav-tab" data-tab="financials">💰 Financial Dashboard</button>
+      <button class="nav-tab" data-tab="technology">💻 Technology Dashboard</button>
+      <button class="nav-tab" data-tab="margins">📈 Margin Analysis</button>
+      <button class="nav-tab" data-tab="hours">⏱️ Hours Analysis</button>
+      <button class="nav-tab" data-tab="dq">🛡️ Data Quality Audit</button>
+    </div>
+  </div>
+
+  <!-- Main Dashboard Container -->
+  <main class="dashboard-content">
+    
+    <!-- Top KPI Grid -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Total Projects</span>
+          <div class="kpi-icon blue">📁</div>
+        </div>
+        <div class="kpi-value" id="kpi-total-projects">0</div>
+        <div class="kpi-subtext"><span class="kpi-trend positive" id="kpi-active-projects">Active: 0</span></div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Total Billing</span>
+          <div class="kpi-icon green">💵</div>
+        </div>
+        <div class="kpi-value" id="kpi-total-billing">₹0</div>
+        <div class="kpi-subtext"><span id="kpi-avg-billing">Avg: ₹0 / proj</span></div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Total Resource Payout</span>
+          <div class="kpi-icon amber">💸</div>
+        </div>
+        <div class="kpi-value" id="kpi-total-payout">₹0</div>
+        <div class="kpi-subtext"><span id="kpi-avg-payout">Avg Spend: ₹0 / proj</span></div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Total Margin</span>
+          <div class="kpi-icon purple">💎</div>
+        </div>
+        <div class="kpi-value" id="kpi-total-margin">₹0</div>
+        <div class="kpi-subtext"><span class="kpi-trend positive" id="kpi-margin-pct">Margin: 0%</span></div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-title">Direct / Mediator</span>
+          <div class="kpi-icon blue">🤝</div>
+        </div>
+        <div class="kpi-value" id="kpi-direct-mediator">0 / 0</div>
+        <div class="kpi-subtext"><span>Channel Ratio</span></div>
+      </div>
+    </div>
+
+    <!-- TAB 1: EXECUTIVE OVERVIEW -->
+    <div id="tab-overview" class="tab-content">
+      <div class="insights-panel" style="margin-bottom: 1.5rem;">
+        <div class="insights-header">
+          <h2>💡 Project Coordinators BI & Analytics Overview</h2>
+        </div>
+        <div class="insights-grid">
+          <div class="insight-box summary">
+            <h4>📌 1-Month Focused Report</h4>
+            <ul>
+              <li>Analyzes 1 month of project data per coordinator.</li>
+              <li>Per-coordinator tracking: number of projects managed and resource spend (Total Payout).</li>
+              <li>Bifurcated strictly by Total Resource Payout tiers (not monthly rate).</li>
+            </ul>
+          </div>
+          <div class="insight-box findings">
+            <h4>🌟 Key Findings</h4>
+            <ul>
+              <li>Direct placement contracts yield higher profit margins than Mediator arrangements.</li>
+              <li>Resource payouts categorized from below ₹1 Lakh up to above ₹2 Lakhs per project.</li>
+            </ul>
+          </div>
+          <div class="insight-box risks">
+            <h4>⚠️ Risks & Anomalies</h4>
+            <ul>
+              <li>Automated audit checks for negative margins, zero margins, and missing field data.</li>
+            </ul>
+          </div>
+          <div class="insight-box actions">
+            <h4>🎯 Recommendations</h4>
+            <ul>
+              <li>Monitor high payout projects (&gt; ₹2 Lakhs) to optimize resource spend efficiency.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Coordinator x Value Range Matrix -->
+      <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+        <div class="card-header">
+          <h3>Project Coordinator Resource Spend & Project Value Tier Matrix</h3>
+          <p class="card-header-subtitle">Categorized strictly by Total Resource Payout: Below ₹1 Lakh | ₹1L–₹1.2L | ₹1.2L–₹1.5L | ₹1.5L–₹2L | Above ₹2 Lakh</p>
+        </div>
+        <div class="table-container" id="table-overview-coord-matrix"></div>
+      </div>
+
+      <div class="grid-2" style="margin-bottom: 1.5rem;">
+        <div class="dashboard-card">
+          <div class="card-header"><h3>Billing vs Total Resource Payout</h3></div>
+          <div class="chart-container"><canvas id="chart-overview-bp"></canvas></div>
+        </div>
+        <div class="dashboard-card">
+          <div class="card-header"><h3>Profit Margin Trend</h3></div>
+          <div class="chart-container"><canvas id="chart-overview-margin"></canvas></div>
+        </div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="card-header"><h3>Technology Distribution</h3></div>
+        <div class="chart-container"><canvas id="chart-overview-tech"></canvas></div>
+      </div>
+    </div>
+
+    <!-- TAB 2: COORDINATOR ANALYSIS -->
+    <div id="tab-coordinators" class="tab-content" style="display:none;">
+      <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+        <div class="card-header">
+          <h3>Coordinator Projects & Total Payout Tier Breakdown</h3>
+          <p class="card-header-subtitle">Shows for every coordinator: total projects, resource spend (Total Payout), and project count across all 5 payout tiers</p>
+        </div>
+        <div class="table-container" id="table-coord-full-matrix"></div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="card-header"><h3>Coordinator Projects Master Ledger</h3></div>
+        <div class="table-container" id="table-coord-projects"></div>
+      </div>
+    </div>
+
+    <!-- TAB 3: FINANCIAL DASHBOARD -->
+    <div id="tab-financials" class="tab-content" style="display:none;">
+      <div class="grid-2" style="margin-bottom: 1.5rem;">
+        <div class="dashboard-card">
+          <div class="card-header"><h3>Billing vs Resource Payout</h3></div>
+          <div class="chart-container"><canvas id="chart-fin-bp"></canvas></div>
+        </div>
+        <div class="dashboard-card">
+          <div class="card-header"><h3>Profit Margin Trend</h3></div>
+          <div class="chart-container"><canvas id="chart-fin-margin"></canvas></div>
+        </div>
+      </div>
+
+      <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+        <div class="card-header"><h3>Project Value Distribution (Total Payout Tiers)</h3></div>
+        <div class="chart-container"><canvas id="chart-fin-value-dist"></canvas></div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="card-header"><h3>Master Financial Ledger</h3></div>
+        <div class="table-container" id="table-fin-master"></div>
+      </div>
+    </div>
+
+    <!-- TAB 4: TECHNOLOGY DASHBOARD -->
+    <div id="tab-technology" class="tab-content" style="display:none;">
+      <div class="grid-2" style="margin-bottom: 1.5rem;">
+        <div class="dashboard-card">
+          <div class="card-header"><h3>Technology Distribution</h3></div>
+          <div class="chart-container"><canvas id="chart-tech-donut"></canvas></div>
+        </div>
+        <div class="dashboard-card">
+          <div class="card-header"><h3>Technology Performance Matrix</h3></div>
+          <div class="table-container" id="table-tech-matrix"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: MARGIN ANALYSIS -->
+    <div id="tab-margins" class="tab-content" style="display:none;">
+      <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+        <div class="card-header"><h3>Margin by Employment Type (1099 / C2C / W2 / Contract)</h3></div>
+        <div class="table-container" id="table-margin-emp"></div>
+      </div>
+
+      <div class="dashboard-card" style="border: 2px solid var(--danger);">
+        <div class="card-header"><h3 style="color:var(--danger)">⚠️ Negative Margin Projects Alert</h3></div>
+        <div class="table-container" id="table-margin-negatives"></div>
+      </div>
+    </div>
+
+    <!-- TAB 6: HOURS ANALYSIS -->
+    <div id="tab-hours" class="tab-content" style="display:none;">
+      <div class="grid-2" style="margin-bottom: 1.5rem;">
+        <div class="kpi-card">
+          <span class="kpi-title">Total Hours Worked</span>
+          <div class="kpi-value" id="hours-total-val">0 hrs</div>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-title">Average Hours / Project</span>
+          <div class="kpi-value" id="hours-avg-val">0 hrs</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 7: DATA QUALITY AUDIT -->
+    <div id="tab-dq" class="tab-content" style="display:none;">
+      <div class="dashboard-card">
+        <div class="card-header"><h3>Automated Data Quality Scorecard</h3></div>
+        
+        <div class="scorecard-container">
+          <div class="score-circle">
+            <div class="score-inner">
+              <span class="score-number" id="dq-score-val">100%</span>
+              <span class="score-label">DQ Score</span>
+            </div>
+          </div>
+          <div class="dq-breakdown">
+            <div class="dq-item">
+              <div class="dq-item-label">Duplicate Invoices</div>
+              <div class="dq-item-val" id="dq-dup-inv">0</div>
+            </div>
+            <div class="dq-item">
+              <div class="dq-item-label">Duplicate Consultants</div>
+              <div class="dq-item-val" id="dq-dup-con">0</div>
+            </div>
+            <div class="dq-item">
+              <div class="dq-item-label">Missing Billing / Payout</div>
+              <div class="dq-item-val" id="dq-miss-fin">0 / 0</div>
+            </div>
+            <div class="dq-item">
+              <div class="dq-item-label">Incorrect Dates</div>
+              <div class="dq-item-val" id="dq-invalid-dates">0</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-header" style="margin-top:1rem;">
+          <h3>Error Summary Log</h3>
+        </div>
+        <div class="table-container" id="table-dq-log"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Upload Modal -->
+  <div id="upload-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Upload Staffing Project Excel / CSV</h3>
+        <button id="btn-close-upload" style="background:none; border:none; font-size:1.2rem; cursor:pointer;">✕</button>
+      </div>
+      <label class="dropzone">
+        <input type="file" id="file-input" accept=".csv, .xlsx, .xls" style="display:none;" />
+        <div class="dropzone-icon">📄</div>
+        <p><strong>Click to browse</strong> or drag & drop your Excel / CSV file here</p>
+      </label>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="sample_data.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
