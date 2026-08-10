@@ -1,6 +1,8 @@
 (() => {
   'use strict';
- 
+  // CHANGE ONLY THIS LINE when your CSV filename/path changes.
+  const DATA_FILE = './data.csv';
+
   const EXPECTED_HEADERS = {
     coordinator: ['coordinator name', 'coordinator'],
     support: ['support name (mediator & individual)', 'support name', 'support', 'mediator & individual'],
@@ -8,16 +10,15 @@
     consultant: ['consultant name', 'consultant'],
     rate: ['rate (in rupees)', 'rate in rupees', 'rate', 'payout', 'total payout']
   };
- 
+
   const TIER_ORDER = [
     'Below ₹1 Lakh',
     '₹1 Lakh – ₹1.2 Lakh',
     '₹1.2 Lakh – ₹1.5 Lakh',
     '₹1.5 Lakh – ₹2 Lakh',
-    'Above ₹2 Lakh',
-    'Missing Rate'
+    'Above ₹2 Lakh'
   ];
- 
+
   const state = {
     fileName: '',
     sourceRowCount: 0,
@@ -37,7 +38,7 @@
       tier: 'All'
     }
   };
- 
+
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -45,7 +46,7 @@
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
- 
+
   function normalizeHeader(value) {
     return String(value ?? '')
       .replace(/\u00a0/g, ' ')
@@ -53,18 +54,18 @@
       .toLowerCase()
       .replace(/\s+/g, ' ');
   }
- 
+
   function cleanText(value) {
     return String(value ?? '')
       .replace(/\u00a0/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
   }
- 
+
   function normalizeKeyText(value) {
     return cleanText(value).toLowerCase();
   }
- 
+
   function parseAmount(value) {
     if (value === null || value === undefined || value === '') return null;
     const cleaned = String(value).replace(/,/g, '').replace(/[^0-9.-]/g, '');
@@ -72,7 +73,7 @@
     const number = Number.parseFloat(cleaned);
     return Number.isFinite(number) ? number : null;
   }
- 
+
   function formatINR(value) {
     if (value === null || value === undefined || !Number.isFinite(value)) return '—';
     return new Intl.NumberFormat('en-IN', {
@@ -81,23 +82,23 @@
       maximumFractionDigits: 2
     }).format(value);
   }
- 
+
   function formatNumber(value, decimals = 0) {
     return new Intl.NumberFormat('en-IN', {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals
     }).format(value || 0);
   }
- 
+
   function payoutTier(rate) {
-    if (rate === null || !Number.isFinite(rate)) return 'Missing Rate';
+    if (rate === null || !Number.isFinite(rate)) rate = 0;
     if (rate >= 200000) return 'Above ₹2 Lakh';
     if (rate >= 150000) return '₹1.5 Lakh – ₹2 Lakh';
     if (rate >= 120000) return '₹1.2 Lakh – ₹1.5 Lakh';
     if (rate >= 100000) return '₹1 Lakh – ₹1.2 Lakh';
     return 'Below ₹1 Lakh';
   }
- 
+
   function decodeCsvBuffer(buffer) {
     const bytes = new Uint8Array(buffer);
     const encodings = ['utf-8', 'windows-1252'];
@@ -110,17 +111,17 @@
     }
     return new TextDecoder('windows-1252').decode(bytes);
   }
- 
+
   function parseCSV(text) {
     const rows = [];
     let row = [];
     let field = '';
     let inQuotes = false;
- 
+
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
       const next = text[i + 1];
- 
+
       if (inQuotes) {
         if (char === '"' && next === '"') {
           field += '"';
@@ -132,7 +133,7 @@
         }
         continue;
       }
- 
+
       if (char === '"') {
         inQuotes = true;
       } else if (char === ',') {
@@ -147,15 +148,15 @@
         field += char;
       }
     }
- 
+
     if (field.length || row.length) {
       row.push(field.replace(/\r$/, ''));
       rows.push(row);
     }
- 
+
     return rows;
   }
- 
+
   function findColumnIndex(headers, aliases) {
     const normalized = headers.map(normalizeHeader);
     for (const alias of aliases) {
@@ -164,29 +165,29 @@
     }
     return -1;
   }
- 
+
   function mapCsvRows(csvRows) {
     if (!csvRows.length) throw new Error('The CSV is empty.');
- 
+
     const headers = csvRows[0];
     const indexes = {};
     const missing = [];
- 
+
     for (const [field, aliases] of Object.entries(EXPECTED_HEADERS)) {
       indexes[field] = findColumnIndex(headers, aliases);
       if (indexes[field] < 0) missing.push(aliases[0]);
     }
- 
+
     if (missing.length) {
       throw new Error(`Missing required column${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}`);
     }
- 
+
     state.sourceRowCount = Math.max(0, csvRows.length - 1);
     state.blankRowCount = 0;
     state.qualityIssues = [];
- 
+
     const parsed = [];
- 
+
     for (let i = 1; i < csvRows.length; i++) {
       const row = csvRows[i];
       const sourceRow = i + 1;
@@ -195,35 +196,35 @@
       const client = cleanText(row[indexes.client]);
       const consultant = cleanText(row[indexes.consultant]);
       const rawRate = cleanText(row[indexes.rate]);
- 
+
       if (![coordinator, support, client, consultant, rawRate].some(Boolean)) {
         state.blankRowCount++;
         continue;
       }
- 
-      const rate = parseAmount(rawRate);
+
+      const parsedRate = parseAmount(rawRate);
+      const rate = parsedRate === null ? 0 : parsedRate;
       const record = { sourceRow, coordinator, support, client, consultant, rawRate, rate };
       parsed.push(record);
- 
+
       if (!coordinator) state.qualityIssues.push({ row: sourceRow, type: 'Missing Coordinator', field: 'Coordinator Name', value: 'Blank', severity: 'High' });
       if (!support) state.qualityIssues.push({ row: sourceRow, type: 'Missing Support', field: 'Support Name', value: 'Blank', severity: 'Medium' });
       if (!client) state.qualityIssues.push({ row: sourceRow, type: 'Missing Client', field: 'Client', value: 'Blank', severity: 'Medium' });
       if (!consultant) state.qualityIssues.push({ row: sourceRow, type: 'Missing Consultant', field: 'Consultant Name', value: 'Blank', severity: 'High' });
-      if (rate === null) state.qualityIssues.push({ row: sourceRow, type: 'Missing / Invalid Rate', field: 'Rate (In Rupees)', value: rawRate || 'Blank', severity: 'High' });
-      if (rate !== null && rate < 0) state.qualityIssues.push({ row: sourceRow, type: 'Negative Rate', field: 'Rate (In Rupees)', value: rawRate, severity: 'High' });
+      if (rate < 0) state.qualityIssues.push({ row: sourceRow, type: 'Negative Rate', field: 'Rate (In Rupees)', value: rawRate, severity: 'High' });
     }
- 
+
     return parsed;
   }
- 
+
   function consolidateRows(rows) {
     const groups = new Map();
- 
+
     rows.forEach(record => {
       const key = [record.coordinator, record.support, record.client, record.consultant]
         .map(normalizeKeyText)
         .join('||');
- 
+
       if (!groups.has(key)) {
         groups.set(key, {
           coordinator: record.coordinator || 'Unassigned',
@@ -232,21 +233,19 @@
           consultant: record.consultant || 'Unassigned',
           rate: record.rate,
           paymentCount: 1,
-          sourceRows: [record.sourceRow],
-          hasMissingRate: record.rate === null
+          sourceRows: [record.sourceRow]
         });
       } else {
         const project = groups.get(key);
         project.paymentCount++;
         project.sourceRows.push(record.sourceRow);
-        project.hasMissingRate = project.hasMissingRate || record.rate === null;
-        if (record.rate !== null) project.rate = (project.rate ?? 0) + record.rate;
+        project.rate += record.rate;
       }
     });
- 
+
     state.duplicateGroups = 0;
     const projects = [];
- 
+
     for (const project of groups.values()) {
       if (project.paymentCount > 1) {
         state.duplicateGroups++;
@@ -261,28 +260,28 @@
       project.tier = payoutTier(project.rate);
       projects.push(project);
     }
- 
+
     return projects;
   }
- 
+
   function uniqueValues(field) {
     return [...new Set(state.projects.map(p => p[field]).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
   }
- 
+
   function fillSelect(id, values, allLabel) {
     const select = $(id);
     const current = select.value;
     select.innerHTML = `<option value="All">${esc(allLabel)}</option>` + values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
     select.value = values.includes(current) ? current : 'All';
   }
- 
+
   function populateFilters() {
     fillSelect('filter-coordinator', uniqueValues('coordinator'), 'All Coordinators');
     fillSelect('filter-support', uniqueValues('support'), 'All Support Names');
     fillSelect('filter-client', uniqueValues('client'), 'All Clients');
   }
- 
+
   function applyFilters() {
     const q = state.filters.search.toLowerCase();
     state.filtered = state.projects.filter(project => {
@@ -296,28 +295,28 @@
       }
       return true;
     });
- 
+
     renderAll();
   }
- 
+
   function numericRates(projects) {
     return projects.map(p => p.rate).filter(v => v !== null && Number.isFinite(v));
   }
- 
+
   function median(values) {
     if (!values.length) return 0;
     const sorted = [...values].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
     return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
   }
- 
+
   function renderKpis() {
     const projects = state.filtered;
     const rates = numericRates(projects);
     const total = rates.reduce((sum, v) => sum + v, 0);
     const average = rates.length ? total / rates.length : 0;
     const highValue = projects.filter(p => p.rate !== null && p.rate >= 150000).length;
- 
+
     $('kpi-projects').textContent = formatNumber(projects.length);
     $('kpi-source-rows').textContent = `${formatNumber(state.parsedRows.length)} parsed source rows`;
     $('kpi-coordinators').textContent = formatNumber(new Set(projects.map(p => p.coordinator)).size);
@@ -326,13 +325,12 @@
     $('kpi-average-payout').textContent = formatINR(average);
     $('kpi-median-payout').textContent = `Median ${formatINR(median(rates))}`;
     $('kpi-high-value').textContent = formatNumber(highValue);
- 
+
     $('summary-file').textContent = state.fileName || '—';
     $('summary-records').textContent = formatNumber(state.parsedRows.length);
     $('summary-combined').textContent = formatNumber(state.projects.reduce((sum, p) => sum + Math.max(0, p.paymentCount - 1), 0));
-    $('summary-missing-rate').textContent = formatNumber(state.parsedRows.filter(r => r.rate === null).length);
   }
- 
+
   function aggregate(projects, keyField) {
     const map = new Map();
     projects.forEach(p => {
@@ -353,7 +351,7 @@
     });
     return [...map.values()].sort((a, b) => b.payout - a.payout || b.projects - a.projects);
   }
- 
+
   function coordinatorStats() {
     const map = new Map();
     state.filtered.forEach(p => {
@@ -380,7 +378,7 @@
     });
     return [...map.values()].sort((a, b) => b.payout - a.payout);
   }
- 
+
   function renderCoordinatorTable(containerId) {
     const rows = coordinatorStats();
     const html = rows.map(item => `
@@ -395,7 +393,7 @@
         <td class="num">${(item.tiers['₹1 Lakh – ₹1.2 Lakh'] || 0) + (item.tiers['₹1.2 Lakh – ₹1.5 Lakh'] || 0)}</td>
         <td class="num">${(item.tiers['₹1.5 Lakh – ₹2 Lakh'] || 0) + (item.tiers['Above ₹2 Lakh'] || 0)}</td>
       </tr>`).join('');
- 
+
     $(containerId).innerHTML = `
       <table class="data-table">
         <thead><tr>
@@ -405,7 +403,7 @@
         <tbody>${html || '<tr><td colspan="9" class="empty-cell">No matching records</td></tr>'}</tbody>
       </table>`;
   }
- 
+
   function renderSupportTable() {
     const rows = aggregate(state.filtered, 'support');
     $('table-support').innerHTML = `
@@ -414,7 +412,7 @@
         <tbody>${rows.map(x => `<tr><td><strong>${esc(x.name)}</strong></td><td class="num">${x.projects}</td><td class="num">${x.clients.size}</td><td class="num">${x.consultants.size}</td><td class="num money">${formatINR(x.payout)}</td><td class="num">${x.rates ? formatINR(x.payout / x.rates) : '—'}</td></tr>`).join('') || '<tr><td colspan="6" class="empty-cell">No matching records</td></tr>'}</tbody>
       </table>`;
   }
- 
+
   function renderClientTable() {
     const rows = aggregate(state.filtered, 'client');
     $('table-clients').innerHTML = `
@@ -423,7 +421,7 @@
         <tbody>${rows.map(x => `<tr><td><strong>${esc(x.name)}</strong></td><td class="num">${x.projects}</td><td class="num">${x.consultants.size}</td><td class="num">${x.coordinators.size}</td><td class="num money">${formatINR(x.payout)}</td><td class="num">${x.rates ? formatINR(x.payout / x.rates) : '—'}</td></tr>`).join('') || '<tr><td colspan="6" class="empty-cell">No matching records</td></tr>'}</tbody>
       </table>`;
   }
- 
+
   function renderConsultantTable() {
     const projects = [...state.filtered].sort((a, b) => (b.rate ?? -Infinity) - (a.rate ?? -Infinity));
     $('table-consultants').innerHTML = `
@@ -432,7 +430,7 @@
         <tbody>${projects.map(p => `<tr><td><strong>${esc(p.consultant)}</strong></td><td>${esc(p.client)}</td><td>${esc(p.coordinator)}</td><td>${esc(p.support)}</td><td class="num">${p.paymentCount}</td><td class="num money">${formatINR(p.rate)}</td><td><span class="tier-badge">${esc(p.tier)}</span></td></tr>`).join('') || '<tr><td colspan="7" class="empty-cell">No matching records</td></tr>'}</tbody>
       </table>`;
   }
- 
+
   function renderMasterTable() {
     const projects = [...state.filtered].sort((a, b) => a.coordinator.localeCompare(b.coordinator) || (b.rate ?? -Infinity) - (a.rate ?? -Infinity));
     $('table-master').innerHTML = `
@@ -441,32 +439,31 @@
         <tbody>${projects.map(p => `<tr><td><strong>${esc(p.coordinator)}</strong></td><td>${esc(p.support)}</td><td>${esc(p.client)}</td><td>${esc(p.consultant)}</td><td class="num">${p.paymentCount}</td><td class="num money">${formatINR(p.rate)}</td><td><span class="tier-badge">${esc(p.tier)}</span></td><td>${esc(p.sourceRows.join(', '))}</td></tr>`).join('') || '<tr><td colspan="8" class="empty-cell">No matching records</td></tr>'}</tbody>
       </table>`;
   }
- 
+
   function renderDataQuality() {
     $('dq-source-rows').textContent = formatNumber(state.sourceRowCount);
     $('dq-blank-rows').textContent = formatNumber(state.blankRowCount);
-    $('dq-missing-rates').textContent = formatNumber(state.parsedRows.filter(r => r.rate === null).length);
     $('dq-duplicate-groups').textContent = formatNumber(state.duplicateGroups);
- 
+
     $('table-dq').innerHTML = `
       <table class="data-table">
         <thead><tr><th>CSV Row</th><th>Issue</th><th>Field</th><th>Value / Context</th><th>Severity</th></tr></thead>
         <tbody>${state.qualityIssues.map(issue => `<tr><td>${esc(issue.row)}</td><td><strong>${esc(issue.type)}</strong></td><td>${esc(issue.field)}</td><td>${esc(issue.value)}</td><td><span class="severity severity-${issue.severity.toLowerCase()}">${esc(issue.severity)}</span></td></tr>`).join('') || '<tr><td colspan="5" class="empty-cell">No data quality issues detected</td></tr>'}</tbody>
       </table>`;
   }
- 
+
   function chartColors(count) {
     const palette = ['#2563eb', '#0ea5e9', '#14b8a6', '#22c55e', '#84cc16', '#f59e0b', '#f97316', '#ef4444', '#8b5cf6', '#ec4899'];
     return Array.from({ length: count }, (_, i) => palette[i % palette.length]);
   }
- 
+
   function renderChart(id, config) {
     const canvas = $(id);
     if (!canvas || typeof Chart === 'undefined') return;
     if (state.charts[id]) state.charts[id].destroy();
     state.charts[id] = new Chart(canvas.getContext('2d'), config);
   }
- 
+
   function barOptions(horizontal = false) {
     return {
       responsive: true,
@@ -479,7 +476,7 @@
       }
     };
   }
- 
+
   function renderOverviewCharts() {
     const coordinators = coordinatorStats().slice(0, 12);
     renderChart('chart-coordinator-payout', {
@@ -487,21 +484,21 @@
       data: { labels: coordinators.map(x => x.name), datasets: [{ data: coordinators.map(x => x.payout), backgroundColor: chartColors(coordinators.length), borderRadius: 6 }] },
       options: barOptions(false)
     });
- 
+
     const tierCounts = TIER_ORDER.map(tier => state.filtered.filter(p => p.tier === tier).length);
     renderChart('chart-tier-distribution', {
       type: 'doughnut',
       data: { labels: TIER_ORDER, datasets: [{ data: tierCounts, backgroundColor: chartColors(TIER_ORDER.length), borderWidth: 0 }] },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
     });
- 
+
     const clients = aggregate(state.filtered, 'client').slice(0, 10);
     renderChart('chart-client-payout', {
       type: 'bar',
       data: { labels: clients.map(x => x.name), datasets: [{ data: clients.map(x => x.payout), backgroundColor: chartColors(clients.length), borderRadius: 6 }] },
       options: barOptions(true)
     });
- 
+
     const supports = aggregate(state.filtered, 'support').slice(0, 10);
     renderChart('chart-support-payout', {
       type: 'bar',
@@ -509,7 +506,7 @@
       options: barOptions(true)
     });
   }
- 
+
   function renderDetailCharts() {
     const supports = aggregate(state.filtered, 'support').slice(0, 15);
     renderChart('chart-support-detail', {
@@ -517,7 +514,7 @@
       data: { labels: supports.map(x => x.name), datasets: [{ data: supports.map(x => x.payout), backgroundColor: chartColors(supports.length), borderRadius: 6 }] },
       options: barOptions(true)
     });
- 
+
     const clients = aggregate(state.filtered, 'client').slice(0, 15);
     renderChart('chart-clients-detail', {
       type: 'bar',
@@ -525,7 +522,7 @@
       options: barOptions(true)
     });
   }
- 
+
   function renderAll() {
     renderKpis();
     renderCoordinatorTable('table-overview-coordinators');
@@ -538,57 +535,58 @@
     renderOverviewCharts();
     renderDetailCharts();
   }
- 
+
   function showDashboard() {
-    $('empty-state').classList.add('is-hidden');
     $('dashboard-shell').classList.remove('is-hidden');
   }
- 
-  function openUpload() {
-    $('upload-error').classList.add('is-hidden');
-    $('upload-error').textContent = '';
-    $('upload-modal').classList.remove('is-hidden');
-  }
- 
-  function closeUpload() {
-    $('upload-modal').classList.add('is-hidden');
-  }
- 
-  function setUploadError(message) {
-    const el = $('upload-error');
-    el.textContent = message;
-    el.classList.remove('is-hidden');
-  }
- 
-  async function handleFile(file) {
-    if (!file) return;
-    if (!/\.csv$/i.test(file.name)) {
-      setUploadError('Please upload a .csv file.');
-      return;
-    }
- 
+
+  async function loadDataFile() {
+    const badge = $('file-badge');
+    badge.textContent = `Loading ${DATA_FILE}…`;
+
     try {
-      const text = decodeCsvBuffer(await file.arrayBuffer());
-      const csvRows = parseCSV(text);
+      const response = await fetch(DATA_FILE, { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText || 'Unable to load file'}`);
+      }
+
+      const buffer = await response.arrayBuffer();
+      const csvText = decodeCsvBuffer(buffer);
+      const csvRows = parseCSV(csvText);
+
       state.parsedRows = mapCsvRows(csvRows);
-      if (!state.parsedRows.length) throw new Error('No project records were found after removing blank rows.');
       state.projects = consolidateRows(state.parsedRows);
       state.filtered = [...state.projects];
-      state.fileName = file.name;
+      state.fileName = DATA_FILE.split('/').pop() || DATA_FILE;
       state.filters = { search: '', coordinator: 'All', support: 'All', client: 'All', tier: 'All' };
+
       $('filter-search').value = '';
       $('filter-tier').value = 'All';
-      $('file-badge').textContent = `${file.name} • ${state.projects.length} projects`;
+      badge.textContent = `${state.fileName} • ${state.projects.length} projects`;
+
       populateFilters();
       showDashboard();
-      closeUpload();
       applyFilters();
     } catch (error) {
-      console.error(error);
-      setUploadError(error.message || 'Could not read the CSV file.');
+      console.error('Dashboard data load failed:', error);
+      badge.textContent = 'CSV load failed';
+      badge.classList.add('file-badge-error');
+
+      const existing = document.getElementById('data-load-error');
+      if (existing) existing.remove();
+
+      const message = document.createElement('div');
+      message.id = 'data-load-error';
+      message.className = 'data-load-error';
+      message.innerHTML = `
+        <strong>Could not load dashboard CSV.</strong>
+        <span>Check <code>DATA_FILE</code> in <code>app.js</code> and make sure the CSV exists in your deployed project.</span>
+        <small>${esc(error.message)}</small>
+      `;
+      document.body.insertBefore(message, document.querySelector('.dashboard-shell'));
     }
   }
- 
+
   function resetFilters() {
     state.filters = { search: '', coordinator: 'All', support: 'All', client: 'All', tier: 'All' };
     $('filter-search').value = '';
@@ -598,7 +596,7 @@
     $('filter-tier').value = 'All';
     applyFilters();
   }
- 
+
   function switchTab(tabName, button) {
     state.activeTab = tabName;
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('is-hidden'));
@@ -606,25 +604,22 @@
     document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
     button.classList.add('active');
   }
- 
+
   function setupEvents() {
-    $('btn-open-upload').addEventListener('click', openUpload);
-    $('btn-empty-upload').addEventListener('click', openUpload);
-    $('btn-close-upload').addEventListener('click', closeUpload);
-    $('upload-modal').addEventListener('click', event => { if (event.target === $('upload-modal')) closeUpload(); });
-    $('file-input').addEventListener('change', event => handleFile(event.target.files?.[0]));
- 
     $('filter-search').addEventListener('input', event => { state.filters.search = event.target.value.trim(); applyFilters(); });
     $('filter-coordinator').addEventListener('change', event => { state.filters.coordinator = event.target.value; applyFilters(); });
     $('filter-support').addEventListener('change', event => { state.filters.support = event.target.value; applyFilters(); });
     $('filter-client').addEventListener('change', event => { state.filters.client = event.target.value; applyFilters(); });
     $('filter-tier').addEventListener('change', event => { state.filters.tier = event.target.value; applyFilters(); });
     $('btn-reset-filters').addEventListener('click', resetFilters);
- 
+
     document.querySelectorAll('.nav-tab').forEach(button => {
       button.addEventListener('click', () => switchTab(button.dataset.tab, button));
     });
   }
- 
-  document.addEventListener('DOMContentLoaded', setupEvents);
+
+  document.addEventListener('DOMContentLoaded', () => {
+    setupEvents();
+    loadDataFile();
+  });
 })();

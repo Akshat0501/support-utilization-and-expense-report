@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Project coordinator payout analytics dashboard generated from CSV uploads." />
+  <meta name="description" content="Project coordinator payout analytics dashboard loaded from a configured CSV file." />
   <title>Project Coordinator Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,32 +17,15 @@
       <div class="brand-mark">PC</div>
       <div>
         <h1>Project Coordinator Analytics</h1>
-        <p>Upload the monthly CSV to generate the complete payout dashboard</p>
+        <p>Project payout dashboard</p>
       </div>
     </div>
     <div class="header-actions">
-      <span id="file-badge" class="file-badge">No file loaded</span>
-      <button id="btn-open-upload" class="btn btn-primary">Upload CSV</button>
+      <span id="file-badge" class="file-badge">Loading CSV data…</span>
     </div>
   </header>
- 
-  <section id="empty-state" class="empty-state">
-    <div class="empty-card">
-      <div class="empty-icon">CSV</div>
-      <h2>Upload your Project Coordinator CSV</h2>
-      <p>The dashboard is designed for the recurring CSV format with Coordinator Name, Support Name, Client, Consultant Name, and Rate (In Rupees).</p>
-      <button id="btn-empty-upload" class="btn btn-primary btn-lg">Choose CSV File</button>
-      <div class="expected-columns">
-        <span>Coordinator Name</span>
-        <span>Support Name (Mediator &amp; Individual)</span>
-        <span>Client</span>
-        <span>Consultant Name</span>
-        <span>Rate (In Rupees)</span>
-      </div>
-    </div>
-  </section>
- 
-  <div id="dashboard-shell" class="dashboard-shell is-hidden">
+
+  <div id="dashboard-shell" class="dashboard-shell">
     <section class="filter-ribbon">
       <div class="filter-group filter-search-wrap">
         <label for="filter-search">Search</label>
@@ -69,12 +52,11 @@
           <option value="₹1.2 Lakh – ₹1.5 Lakh">₹1.2L – ₹1.5L</option>
           <option value="₹1.5 Lakh – ₹2 Lakh">₹1.5L – ₹2L</option>
           <option value="Above ₹2 Lakh">Above ₹2 Lakh</option>
-          <option value="Missing Rate">Missing Rate</option>
         </select>
       </div>
       <button id="btn-reset-filters" class="btn btn-ghost">Reset</button>
     </section>
- 
+
     <nav class="tabbar" aria-label="Dashboard sections">
       <button class="nav-tab active" data-tab="overview">Overview</button>
       <button class="nav-tab" data-tab="coordinators">Coordinators</button>
@@ -84,7 +66,7 @@
       <button class="nav-tab" data-tab="dq">Data Quality</button>
       <button class="nav-tab" data-tab="master">Master Data</button>
     </nav>
- 
+
     <main class="dashboard-content">
       <section class="kpi-grid" aria-label="Key performance indicators">
         <article class="kpi-card">
@@ -113,15 +95,14 @@
           <span class="kpi-note">₹1.5L and above</span>
         </article>
       </section>
- 
+
       <section id="tab-overview" class="tab-content">
         <div class="summary-strip">
           <div><span>Loaded file</span><strong id="summary-file">—</strong></div>
           <div><span>Parsed records</span><strong id="summary-records">0</strong></div>
           <div><span>Combined payment rows</span><strong id="summary-combined">0</strong></div>
-          <div><span>Missing rates</span><strong id="summary-missing-rate">0</strong></div>
         </div>
- 
+
         <div class="grid-2">
           <article class="dashboard-card">
             <div class="card-header"><div><h3>Payout by Coordinator</h3><p>Total resource payout across projects</p></div></div>
@@ -132,7 +113,7 @@
             <div class="chart-container"><canvas id="chart-tier-distribution"></canvas></div>
           </article>
         </div>
- 
+
         <div class="grid-2">
           <article class="dashboard-card">
             <div class="card-header"><div><h3>Top Clients by Payout</h3><p>Highest resource spend by client</p></div></div>
@@ -143,20 +124,20 @@
             <div class="chart-container"><canvas id="chart-support-payout"></canvas></div>
           </article>
         </div>
- 
+
         <article class="dashboard-card">
           <div class="card-header"><div><h3>Coordinator Performance Matrix</h3><p>Project volume and payout distribution by coordinator</p></div></div>
           <div id="table-overview-coordinators" class="table-container"></div>
         </article>
       </section>
- 
+
       <section id="tab-coordinators" class="tab-content is-hidden">
         <article class="dashboard-card">
           <div class="card-header"><div><h3>Coordinator Analysis</h3><p>Projects, support coverage, client coverage, total payout, average payout and payout tiers</p></div></div>
           <div id="table-coordinators" class="table-container"></div>
         </article>
       </section>
- 
+
       <section id="tab-support" class="tab-content is-hidden">
         <div class="grid-2">
           <article class="dashboard-card">
@@ -169,7 +150,7 @@
           </article>
         </div>
       </section>
- 
+
       <section id="tab-clients" class="tab-content is-hidden">
         <div class="grid-2">
           <article class="dashboard-card">
@@ -182,27 +163,26 @@
           </article>
         </div>
       </section>
- 
+
       <section id="tab-consultants" class="tab-content is-hidden">
         <article class="dashboard-card">
           <div class="card-header"><div><h3>Consultant Portfolio</h3><p>Consultant payout, client, coordinator and support mapping</p></div></div>
           <div id="table-consultants" class="table-container"></div>
         </article>
       </section>
- 
+
       <section id="tab-dq" class="tab-content is-hidden">
         <div class="dq-grid">
           <article class="dq-card"><span>Source Rows</span><strong id="dq-source-rows">0</strong></article>
           <article class="dq-card"><span>Blank Separator Rows</span><strong id="dq-blank-rows">0</strong></article>
-          <article class="dq-card"><span>Missing Rates</span><strong id="dq-missing-rates">0</strong></article>
           <article class="dq-card"><span>Payment Groups Combined</span><strong id="dq-duplicate-groups">0</strong></article>
         </div>
         <article class="dashboard-card">
-          <div class="card-header"><div><h3>Data Quality Log</h3><p>Rows requiring review in the uploaded CSV</p></div></div>
+          <div class="card-header"><div><h3>Data Quality Log</h3><p>Rows requiring review in the configured CSV source data</p></div></div>
           <div id="table-dq" class="table-container"></div>
         </article>
       </section>
- 
+
       <section id="tab-master" class="tab-content is-hidden">
         <article class="dashboard-card">
           <div class="card-header"><div><h3>Consolidated Project Master</h3><p>Matching Coordinator + Support + Client + Consultant rows are combined as payments for one project</p></div></div>
@@ -211,23 +191,7 @@
       </section>
     </main>
   </div>
- 
-  <div id="upload-modal" class="modal-overlay is-hidden" role="dialog" aria-modal="true" aria-labelledby="upload-title">
-    <div class="modal-card">
-      <div class="modal-header">
-        <div><h2 id="upload-title">Upload Project CSV</h2><p>Choose the latest monthly CSV file.</p></div>
-        <button id="btn-close-upload" class="icon-btn" aria-label="Close upload dialog">×</button>
-      </div>
-      <label class="dropzone" for="file-input">
-        <input id="file-input" type="file" accept=".csv,text/csv" hidden />
-        <div class="dropzone-icon">CSV</div>
-        <strong>Click to choose your CSV</strong>
-        <span>Only .csv files are accepted</span>
-      </label>
-      <div id="upload-error" class="upload-error is-hidden"></div>
-    </div>
-  </div>
- 
+
   <script src="app.js"></script>
 </body>
 </html>
