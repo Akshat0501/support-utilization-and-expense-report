@@ -1,708 +1,630 @@
-/* Project coordinators BI & Analytics - Pure Vanilla JavaScript Engine with Project Consolidation */
-
-(function () {
-  let rawDataset = window.SAMPLE_PROJECT_DATA || [];
-  let normalizedProjects = [];
-  let consolidatedProjects = [];
-  let filteredProjects = [];
-  let activeTab = "overview";
-  let currencySymbol = "₹";
-  let chartInstances = {};
-
-  const filters = {
-    month: "All",
-    coordinator: "All",
-    technology: "All",
-    empType: "All",
-    status: "All",
-    channel: "All",
-    valueCategory: "All",
-    search: ""
+(() => {
+  'use strict';
+ 
+  const EXPECTED_HEADERS = {
+    coordinator: ['coordinator name', 'coordinator'],
+    support: ['support name (mediator & individual)', 'support name', 'support', 'mediator & individual'],
+    client: ['client', 'client name'],
+    consultant: ['consultant name', 'consultant'],
+    rate: ['rate (in rupees)', 'rate in rupees', 'rate', 'payout', 'total payout']
   };
-
-  function parseAmount(val, isUSD) {
-    if (typeof val === 'number') return isUSD ? val * 83.5 : val;
-    if (!val) return 0;
-    const str = val.toString();
-    const hasDollar = str.includes('$') || isUSD;
-    const cleanStr = str.replace(/[^0-9.-]/g, '');
-    const num = parseFloat(cleanStr) || 0;
-    return hasDollar ? num * 83.5 : num;
-  }
-
-  const COLUMN_ALIASES = {
-    serial: ["serial number", "serial", "s.no", "s no", "sno", "id"],
-    invoice_name: ["invoice name", "invoice_name", "inv name"],
-    invoice_number: ["invoice no", "invoice number", "invoice_no", "invoice", "inv #", "inv_num"],
-    support_name: ["support name", "support"],
-    consultant: ["project person", "consultant name", "consultant", "resource name", "candidate", "resource"],
-    technology: ["tech", "technology", "tech stack", "skill"],
-    coordinator: ["coordinator", "project coordinator / project owner", "project coordinator", "project owner", "owner", "manager"],
-    client: ["client name", "client", "customer"],
-    service: ["service", "service provided", "project name"],
-    project_type: ["project type", "type"],
-    emp_type: ["employment type (1099 / c2c / w2 / contract)", "employment type", "emp type"],
-    direct_mediator: ["direct or mediator", "direct/mediator", "channel"],
-    mediator: ["mediator name", "mediator"],
-    vendor: ["vendor name", "vendor"],
-    month: ["month", "billing month", "period"],
-    currency: ["currency", "curr"],
-    hours_worked: ["hrs", "hours worked", "hours", "total hours"],
-    working_days: ["working days", "days worked", "days"],
-    total_days: ["total days in month", "days in month"],
-    hourly_rate: ["hourly rate", "rate/hr"],
-    monthly_rate: ["monthly", "monthly rate", "monthly amount"],
-    total_billing: ["total billing", "billing", "bill amount", "revenue"],
-    total_payout: ["total", "total payout", "payout", "cost", "consultant payout", "resource payout", "amount paid"],
-    start_date: ["start date", "start"],
-    end_date: ["end date", "end"],
-    status: ["status", "project status"],
-    notes: ["notes", "remark", "remarks", "comments"]
-  };
-
-  function normalizeRow(rawRow) {
-    const normalized = {};
-    const rawKeys = Object.keys(rawRow);
-
-    for (const [standardKey, aliases] of Object.entries(COLUMN_ALIASES)) {
-      const matchedKey = rawKeys.find(rk => aliases.includes(rk.trim().toLowerCase()));
-      normalized[standardKey] = matchedKey ? rawRow[matchedKey] : null;
+ 
+  const TIER_ORDER = [
+    'Below ₹1 Lakh',
+    '₹1 Lakh – ₹1.2 Lakh',
+    '₹1.2 Lakh – ₹1.5 Lakh',
+    '₹1.5 Lakh – ₹2 Lakh',
+    'Above ₹2 Lakh',
+    'Missing Rate'
+  ];
+ 
+  const state = {
+    fileName: '',
+    sourceRowCount: 0,
+    blankRowCount: 0,
+    parsedRows: [],
+    projects: [],
+    filtered: [],
+    qualityIssues: [],
+    duplicateGroups: 0,
+    activeTab: 'overview',
+    charts: {},
+    filters: {
+      search: '',
+      coordinator: 'All',
+      support: 'All',
+      client: 'All',
+      tier: 'All'
     }
-
-    rawKeys.forEach(rk => {
-      const lower = rk.trim().toLowerCase();
-      if ((lower === "coordinator" || lower.includes("coordinator")) && !normalized.coordinator) normalized.coordinator = rawRow[rk];
-      if ((lower === "tech" || lower.includes("tech")) && !normalized.technology) normalized.technology = rawRow[rk];
-      if (lower === "total" && !normalized.total_payout) normalized.total_payout = rawRow[rk];
-      if (lower === "project person" && !normalized.consultant) normalized.consultant = rawRow[rk];
-    });
-
-    const isUSD = (normalized.currency || "").toUpperCase() === "USD" || (normalized.total_payout || "").toString().includes("$");
-    const totalPayout = parseAmount(normalized.total_payout || rawRow["Total"], isUSD);
-    const totalBilling = parseAmount(normalized.total_billing || rawRow["Total Billing"], isUSD);
-    const monthlyRate = parseAmount(normalized.monthly_rate || rawRow["Monthly"], isUSD);
-
-    return {
-      raw: rawRow,
-      serial: normalized.serial || rawRow["S No"] || "-",
-      invoice_number: normalized.invoice_number || rawRow["Invoice No"] || "N/A",
-      support_name: (normalized.support_name || rawRow["Support Name"] || "").trim(),
-      consultant: (normalized.consultant || rawRow["Project Person"] || "Unknown Consultant").trim(),
-      technology: (normalized.technology || rawRow["Tech"] || "Unmapped Tech").trim(),
-      coordinator: (normalized.coordinator || rawRow["Coordinator"] || "Unassigned Owner").trim(),
-      client: (normalized.client || rawRow["Client Name"] || "Unmapped Client").trim(),
-      service: (normalized.service || rawRow["Project Name"] || "Support").trim(),
-      project_type: normalized.project_type || "Staff Augmentation",
-      emp_type: normalized.emp_type || "Contract",
-      direct_mediator: normalized.direct_mediator || "Direct",
-      month: normalized.month || rawRow["Month"] || "Jul-26",
-      currency: normalized.currency || "INR",
-      hours_worked: normalized.hours_worked || rawRow["Hrs"] || "4-5 Hrs",
-      monthly_rate: monthlyRate,
-      total_billing: totalBilling,
-      total_payout: totalPayout,
-      status: (normalized.status || rawRow["Status"] || "Approved").trim(),
-      notes: (normalized.notes || rawRow["Notes"] || rawRow["Remark"] || "").trim()
-    };
+  };
+ 
+  const $ = id => document.getElementById(id);
+  const esc = value => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+ 
+  function normalizeHeader(value) {
+    return String(value ?? '')
+      .replace(/\u00a0/g, ' ')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ' ');
   }
-
-  // 5-FIELD EXACT PROJECT CONSOLIDATION & PAYMENT SUMMATION LOGIC
-  function consolidateProjects(rawProjects) {
-    const map = {};
-
-    rawProjects.forEach(p => {
-      // 5 Unique Matching Keys: Support Name | Tech | Project Name | Project Person | Client Name
-      const sName = p.support_name.toLowerCase();
-      const tech = p.technology.toLowerCase();
-      const pName = p.service.toLowerCase();
-      const pPerson = p.consultant.toLowerCase();
-      const cName = p.client.toLowerCase();
-
-      const groupKey = `${sName}||${tech}||${pName}||${pPerson}||${cName}`;
-
-      if (!map[groupKey]) {
-        map[groupKey] = {
-          ...p,
-          paymentCount: 1,
-          total_payout: p.total_payout,
-          total_billing: p.total_billing,
-          notesList: p.notes ? [p.notes] : []
-        };
+ 
+  function cleanText(value) {
+    return String(value ?? '')
+      .replace(/\u00a0/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+ 
+  function normalizeKeyText(value) {
+    return cleanText(value).toLowerCase();
+  }
+ 
+  function parseAmount(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const cleaned = String(value).replace(/,/g, '').replace(/[^0-9.-]/g, '');
+    if (!cleaned) return null;
+    const number = Number.parseFloat(cleaned);
+    return Number.isFinite(number) ? number : null;
+  }
+ 
+  function formatINR(value) {
+    if (value === null || value === undefined || !Number.isFinite(value)) return '—';
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 2
+    }).format(value);
+  }
+ 
+  function formatNumber(value, decimals = 0) {
+    return new Intl.NumberFormat('en-IN', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    }).format(value || 0);
+  }
+ 
+  function payoutTier(rate) {
+    if (rate === null || !Number.isFinite(rate)) return 'Missing Rate';
+    if (rate >= 200000) return 'Above ₹2 Lakh';
+    if (rate >= 150000) return '₹1.5 Lakh – ₹2 Lakh';
+    if (rate >= 120000) return '₹1.2 Lakh – ₹1.5 Lakh';
+    if (rate >= 100000) return '₹1 Lakh – ₹1.2 Lakh';
+    return 'Below ₹1 Lakh';
+  }
+ 
+  function decodeCsvBuffer(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const encodings = ['utf-8', 'windows-1252'];
+    for (const encoding of encodings) {
+      try {
+        return new TextDecoder(encoding, { fatal: encoding === 'utf-8' }).decode(bytes);
+      } catch (_) {
+        // Try next encoding.
+      }
+    }
+    return new TextDecoder('windows-1252').decode(bytes);
+  }
+ 
+  function parseCSV(text) {
+    const rows = [];
+    let row = [];
+    let field = '';
+    let inQuotes = false;
+ 
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const next = text[i + 1];
+ 
+      if (inQuotes) {
+        if (char === '"' && next === '"') {
+          field += '"';
+          i++;
+        } else if (char === '"') {
+          inQuotes = false;
+        } else {
+          field += char;
+        }
+        continue;
+      }
+ 
+      if (char === '"') {
+        inQuotes = true;
+      } else if (char === ',') {
+        row.push(field);
+        field = '';
+      } else if (char === '\n') {
+        row.push(field.replace(/\r$/, ''));
+        rows.push(row);
+        row = [];
+        field = '';
       } else {
-        // Same project detected! Combine payments & notes into 1 project entry
-        const existing = map[groupKey];
-        existing.paymentCount += 1;
-        existing.total_payout += p.total_payout;
-        existing.total_billing += p.total_billing;
-        if (p.notes && !existing.notesList.includes(p.notes)) {
-          existing.notesList.push(p.notes);
-        }
+        field += char;
+      }
+    }
+ 
+    if (field.length || row.length) {
+      row.push(field.replace(/\r$/, ''));
+      rows.push(row);
+    }
+ 
+    return rows;
+  }
+ 
+  function findColumnIndex(headers, aliases) {
+    const normalized = headers.map(normalizeHeader);
+    for (const alias of aliases) {
+      const idx = normalized.indexOf(alias);
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  }
+ 
+  function mapCsvRows(csvRows) {
+    if (!csvRows.length) throw new Error('The CSV is empty.');
+ 
+    const headers = csvRows[0];
+    const indexes = {};
+    const missing = [];
+ 
+    for (const [field, aliases] of Object.entries(EXPECTED_HEADERS)) {
+      indexes[field] = findColumnIndex(headers, aliases);
+      if (indexes[field] < 0) missing.push(aliases[0]);
+    }
+ 
+    if (missing.length) {
+      throw new Error(`Missing required column${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}`);
+    }
+ 
+    state.sourceRowCount = Math.max(0, csvRows.length - 1);
+    state.blankRowCount = 0;
+    state.qualityIssues = [];
+ 
+    const parsed = [];
+ 
+    for (let i = 1; i < csvRows.length; i++) {
+      const row = csvRows[i];
+      const sourceRow = i + 1;
+      const coordinator = cleanText(row[indexes.coordinator]);
+      const support = cleanText(row[indexes.support]);
+      const client = cleanText(row[indexes.client]);
+      const consultant = cleanText(row[indexes.consultant]);
+      const rawRate = cleanText(row[indexes.rate]);
+ 
+      if (![coordinator, support, client, consultant, rawRate].some(Boolean)) {
+        state.blankRowCount++;
+        continue;
+      }
+ 
+      const rate = parseAmount(rawRate);
+      const record = { sourceRow, coordinator, support, client, consultant, rawRate, rate };
+      parsed.push(record);
+ 
+      if (!coordinator) state.qualityIssues.push({ row: sourceRow, type: 'Missing Coordinator', field: 'Coordinator Name', value: 'Blank', severity: 'High' });
+      if (!support) state.qualityIssues.push({ row: sourceRow, type: 'Missing Support', field: 'Support Name', value: 'Blank', severity: 'Medium' });
+      if (!client) state.qualityIssues.push({ row: sourceRow, type: 'Missing Client', field: 'Client', value: 'Blank', severity: 'Medium' });
+      if (!consultant) state.qualityIssues.push({ row: sourceRow, type: 'Missing Consultant', field: 'Consultant Name', value: 'Blank', severity: 'High' });
+      if (rate === null) state.qualityIssues.push({ row: sourceRow, type: 'Missing / Invalid Rate', field: 'Rate (In Rupees)', value: rawRate || 'Blank', severity: 'High' });
+      if (rate !== null && rate < 0) state.qualityIssues.push({ row: sourceRow, type: 'Negative Rate', field: 'Rate (In Rupees)', value: rawRate, severity: 'High' });
+    }
+ 
+    return parsed;
+  }
+ 
+  function consolidateRows(rows) {
+    const groups = new Map();
+ 
+    rows.forEach(record => {
+      const key = [record.coordinator, record.support, record.client, record.consultant]
+        .map(normalizeKeyText)
+        .join('||');
+ 
+      if (!groups.has(key)) {
+        groups.set(key, {
+          coordinator: record.coordinator || 'Unassigned',
+          support: record.support || 'Unassigned',
+          client: record.client || 'Unassigned',
+          consultant: record.consultant || 'Unassigned',
+          rate: record.rate,
+          paymentCount: 1,
+          sourceRows: [record.sourceRow],
+          hasMissingRate: record.rate === null
+        });
+      } else {
+        const project = groups.get(key);
+        project.paymentCount++;
+        project.sourceRows.push(record.sourceRow);
+        project.hasMissingRate = project.hasMissingRate || record.rate === null;
+        if (record.rate !== null) project.rate = (project.rate ?? 0) + record.rate;
       }
     });
-
-    // Re-evaluate consolidated financial metrics & payout tiers
-    return Object.values(map).map(p => {
-      const consolidatedPayout = p.total_payout;
-      const consolidatedBilling = p.total_billing > 0 ? p.total_billing : (consolidatedPayout * 1.25);
-      const margin = consolidatedBilling - consolidatedPayout;
-      const marginPct = consolidatedBilling > 0 ? (margin / consolidatedBilling) * 100 : 0;
-
-      // Tiering based strictly on CONSOLIDATED TOTAL RESOURCE PAYOUT
-      let valueCategory = "Below ₹1 Lakh";
-      if (consolidatedPayout >= 200000) {
-        valueCategory = "Above ₹2 Lakh";
-      } else if (consolidatedPayout >= 150000) {
-        valueCategory = "₹1.5 Lakh – ₹2 Lakh";
-      } else if (consolidatedPayout >= 120000) {
-        valueCategory = "₹1.2 Lakh – ₹1.5 Lakh";
-      } else if (consolidatedPayout >= 100000) {
-        valueCategory = "₹1 Lakh – ₹1.2 Lakh";
+ 
+    state.duplicateGroups = 0;
+    const projects = [];
+ 
+    for (const project of groups.values()) {
+      if (project.paymentCount > 1) {
+        state.duplicateGroups++;
+        state.qualityIssues.push({
+          row: project.sourceRows.join(', '),
+          type: 'Payments Combined',
+          field: 'Project identity',
+          value: `${project.coordinator} / ${project.support} / ${project.client} / ${project.consultant}`,
+          severity: 'Info'
+        });
       }
-
-      return {
-        ...p,
-        total_billing: consolidatedBilling,
-        total_payout: consolidatedPayout,
-        margin: margin,
-        margin_pct: marginPct,
-        value_category: valueCategory,
-        notes: p.notesList.join(" | ")
-      };
-    });
+      project.tier = payoutTier(project.rate);
+      projects.push(project);
+    }
+ 
+    return projects;
   }
-
-  // Data Quality Audit
-  function runDataQualityAudit(projects) {
-    const errors = [];
-    const invoiceCounts = {};
-    let missingPayout = 0;
-    let missingCoordinator = 0;
-    let missingTech = 0;
-    let missingClient = 0;
-
-    projects.forEach((p, idx) => {
-      const r = idx + 1;
-      if (p.invoice_number && p.invoice_number !== "N/A") {
-        invoiceCounts[p.invoice_number] = (invoiceCounts[p.invoice_number] || 0) + 1;
-        if (invoiceCounts[p.invoice_number] > 1) {
-          errors.push({ row: r, type: "Duplicate Invoice", field: "Invoice No", value: p.invoice_number, severity: "Medium" });
-        }
-      }
-
-      if (!p.total_payout || p.total_payout === 0) { missingPayout++; errors.push({ row: r, type: "Missing Total Payout", field: "Total", value: "0 or Blank", severity: "High" }); }
-      if (!p.coordinator || p.coordinator === "Unassigned Owner") { missingCoordinator++; errors.push({ row: r, type: "Missing Coordinator", field: "Coordinator", value: "Blank", severity: "High" }); }
-      if (!p.technology || p.technology === "Unmapped Tech") { missingTech++; errors.push({ row: r, type: "Missing Tech", field: "Tech", value: "Blank", severity: "Medium" }); }
-      if (!p.client || p.client === "Unmapped Client") { missingClient++; errors.push({ row: r, type: "Missing Client", field: "Client Name", value: "Blank", severity: "Medium" }); }
-    });
-
-    const total = projects.length || 1;
-    const dqScore = Math.max(0, Math.round(100 - (errors.length / total) * 20));
-
-    return {
-      score: dqScore,
-      errors,
-      summary: {
-        duplicateInvoices: Object.values(invoiceCounts).filter(c => c > 1).length,
-        missingBilling: 0, missingPayout, missingHours: 0, missingCoordinator, missingTech, missingClient,
-        invalidDates: 0, negativeValues: 0, currencies: null
-      }
-    };
+ 
+  function uniqueValues(field) {
+    return [...new Set(state.projects.map(p => p[field]).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
   }
-
-  function formatCurr(val) {
-    return `${currencySymbol}${Math.round(val).toLocaleString()}`;
+ 
+  function fillSelect(id, values, allLabel) {
+    const select = $(id);
+    const current = select.value;
+    select.innerHTML = `<option value="All">${esc(allLabel)}</option>` + values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    select.value = values.includes(current) ? current : 'All';
   }
-
-  function processData() {
-    normalizedProjects = rawDataset.map(normalizeRow);
-    // Consolidate rows where Support Name, Tech, Project Name, Project Person, Client Name match!
-    consolidatedProjects = consolidateProjects(normalizedProjects);
-    populateFilterDropdowns();
-    applyFilters();
+ 
+  function populateFilters() {
+    fillSelect('filter-coordinator', uniqueValues('coordinator'), 'All Coordinators');
+    fillSelect('filter-support', uniqueValues('support'), 'All Support Names');
+    fillSelect('filter-client', uniqueValues('client'), 'All Clients');
   }
-
-  function populateFilterDropdowns() {
-    const months = ["All", ...new Set(consolidatedProjects.map(p => p.month))];
-    const coordinators = ["All", ...new Set(consolidatedProjects.map(p => p.coordinator))];
-    const technologies = ["All", ...new Set(consolidatedProjects.map(p => p.technology))];
-    const statuses = ["All", ...new Set(consolidatedProjects.map(p => p.status))];
-
-    fillSelect("filter-month", months);
-    fillSelect("filter-coordinator", coordinators);
-    fillSelect("filter-tech", technologies);
-    fillSelect("filter-status", statuses);
-  }
-
-  function fillSelect(elemId, options) {
-    const sel = document.getElementById(elemId);
-    if (!sel) return;
-    const currentVal = sel.value;
-    sel.innerHTML = options.map(o => `<option value="${o}">${o}</option>`).join("");
-    if (options.includes(currentVal)) sel.value = currentVal;
-  }
-
+ 
   function applyFilters() {
-    filteredProjects = consolidatedProjects.filter(p => {
-      if (filters.month !== "All" && p.month !== filters.month) return false;
-      if (filters.coordinator !== "All" && p.coordinator !== filters.coordinator) return false;
-      if (filters.technology !== "All" && p.technology !== filters.technology) return false;
-      if (filters.status !== "All" && p.status !== filters.status) return false;
-      if (filters.valueCategory !== "All" && p.value_category !== filters.valueCategory) return false;
-      if (filters.search) {
-        const q = filters.search.toLowerCase();
-        const str = `${p.consultant} ${p.client} ${p.technology} ${p.coordinator} ${p.invoice_number}`.toLowerCase();
-        if (!str.includes(q)) return false;
+    const q = state.filters.search.toLowerCase();
+    state.filtered = state.projects.filter(project => {
+      if (state.filters.coordinator !== 'All' && project.coordinator !== state.filters.coordinator) return false;
+      if (state.filters.support !== 'All' && project.support !== state.filters.support) return false;
+      if (state.filters.client !== 'All' && project.client !== state.filters.client) return false;
+      if (state.filters.tier !== 'All' && project.tier !== state.filters.tier) return false;
+      if (q) {
+        const haystack = `${project.coordinator} ${project.support} ${project.client} ${project.consultant}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
       }
       return true;
     });
-
-    renderKpis();
-    renderActiveTab();
+ 
+    renderAll();
   }
-
+ 
+  function numericRates(projects) {
+    return projects.map(p => p.rate).filter(v => v !== null && Number.isFinite(v));
+  }
+ 
+  function median(values) {
+    if (!values.length) return 0;
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+ 
   function renderKpis() {
-    const total = filteredProjects.length;
-    const active = filteredProjects.filter(p => p.status === "Approved").length;
-    const billing = filteredProjects.reduce((a, c) => a + c.total_billing, 0);
-    const payout = filteredProjects.reduce((a, c) => a + c.total_payout, 0);
-    const margin = billing - payout;
-    const marginPct = billing > 0 ? (margin / billing) * 100 : 0;
-
-    document.getElementById("kpi-total-projects").innerText = total;
-    document.getElementById("kpi-active-projects").innerText = `Approved: ${active}`;
-    document.getElementById("kpi-total-billing").innerText = formatCurr(billing);
-    document.getElementById("kpi-avg-billing").innerText = `Avg: ${formatCurr(total > 0 ? billing / total : 0)} / proj`;
-    document.getElementById("kpi-total-payout").innerText = formatCurr(payout);
-    document.getElementById("kpi-avg-payout").innerText = `Avg Spend: ${formatCurr(total > 0 ? payout / total : 0)} / proj`;
-    document.getElementById("kpi-total-margin").innerText = formatCurr(margin);
-    document.getElementById("kpi-margin-pct").innerText = `Margin: ${marginPct.toFixed(1)}%`;
-    document.getElementById("kpi-direct-mediator").innerText = `${total} Proj`;
+    const projects = state.filtered;
+    const rates = numericRates(projects);
+    const total = rates.reduce((sum, v) => sum + v, 0);
+    const average = rates.length ? total / rates.length : 0;
+    const highValue = projects.filter(p => p.rate !== null && p.rate >= 150000).length;
+ 
+    $('kpi-projects').textContent = formatNumber(projects.length);
+    $('kpi-source-rows').textContent = `${formatNumber(state.parsedRows.length)} parsed source rows`;
+    $('kpi-coordinators').textContent = formatNumber(new Set(projects.map(p => p.coordinator)).size);
+    $('kpi-support-count').textContent = `${formatNumber(new Set(projects.map(p => p.support)).size)} support names`;
+    $('kpi-total-payout').textContent = formatINR(total);
+    $('kpi-average-payout').textContent = formatINR(average);
+    $('kpi-median-payout').textContent = `Median ${formatINR(median(rates))}`;
+    $('kpi-high-value').textContent = formatNumber(highValue);
+ 
+    $('summary-file').textContent = state.fileName || '—';
+    $('summary-records').textContent = formatNumber(state.parsedRows.length);
+    $('summary-combined').textContent = formatNumber(state.projects.reduce((sum, p) => sum + Math.max(0, p.paymentCount - 1), 0));
+    $('summary-missing-rate').textContent = formatNumber(state.parsedRows.filter(r => r.rate === null).length);
   }
-
-  function renderActiveTab() {
-    document.querySelectorAll(".tab-content").forEach(el => el.style.display = "none");
-    const activeEl = document.getElementById(`tab-${activeTab}`);
-    if (activeEl) activeEl.style.display = "block";
-
-    if (activeTab === "overview") renderOverviewSection();
-    else if (activeTab === "coordinators") renderCoordinatorSection();
-    else if (activeTab === "financials") renderFinancialsSection();
-    else if (activeTab === "technology") renderTechnologySection();
-    else if (activeTab === "margins") renderMarginSection();
-    else if (activeTab === "hours") renderHoursSection();
-    else if (activeTab === "dq") renderDqSection();
+ 
+  function aggregate(projects, keyField) {
+    const map = new Map();
+    projects.forEach(p => {
+      const key = p[keyField] || 'Unassigned';
+      if (!map.has(key)) {
+        map.set(key, { name: key, projects: 0, payout: 0, rates: 0, clients: new Set(), consultants: new Set(), supports: new Set(), coordinators: new Set() });
+      }
+      const item = map.get(key);
+      item.projects++;
+      if (p.rate !== null) {
+        item.payout += p.rate;
+        item.rates++;
+      }
+      item.clients.add(p.client);
+      item.consultants.add(p.consultant);
+      item.supports.add(p.support);
+      item.coordinators.add(p.coordinator);
+    });
+    return [...map.values()].sort((a, b) => b.payout - a.payout || b.projects - a.projects);
   }
-
-  function renderOverviewSection() {
-    renderBillingPayoutChart("chart-overview-bp");
-    renderMonthlyMarginChart("chart-overview-margin");
-    renderTechDonutChart("chart-overview-tech");
-    renderCoordinatorValueMatrix("table-overview-coord-matrix");
-  }
-
-  function renderFinancialsSection() {
-    renderBillingPayoutChart("chart-fin-bp");
-    renderMonthlyMarginChart("chart-fin-margin");
-    renderValueDistributionChart("chart-fin-value-dist");
-    renderMasterTable("table-fin-master", filteredProjects);
-  }
-
-  function renderCoordinatorSection() {
-    renderCoordinatorValueMatrix("table-coord-full-matrix");
-    renderMasterTable("table-coord-projects", filteredProjects);
-  }
-
-  function renderCoordinatorValueMatrix(tableId) {
-    const container = document.getElementById(tableId);
-    if (!container) return;
-
-    const map = {};
-    filteredProjects.forEach(p => {
-      if (!map[p.coordinator]) {
-        map[p.coordinator] = {
+ 
+  function coordinatorStats() {
+    const map = new Map();
+    state.filtered.forEach(p => {
+      if (!map.has(p.coordinator)) {
+        map.set(p.coordinator, {
           name: p.coordinator,
-          totalProjects: 0,
-          below1L: 0,
-          l1_1_2: 0,
-          l1_2_1_5: 0,
-          l1_5_2: 0,
-          above2L: 0,
-          totalPayout: 0,
-          totalBilling: 0,
-          totalMargin: 0
-        };
+          projects: 0,
+          payout: 0,
+          rateCount: 0,
+          clients: new Set(),
+          supports: new Set(),
+          tiers: Object.fromEntries(TIER_ORDER.map(t => [t, 0]))
+        });
       }
-
-      const c = map[p.coordinator];
-      c.totalProjects++;
-      c.totalBilling += p.total_billing;
-      c.totalPayout += p.total_payout;
-      c.totalMargin += p.margin;
-
-      if (p.value_category === "Below ₹1 Lakh") c.below1L++;
-      else if (p.value_category === "₹1 Lakh – ₹1.2 Lakh") c.l1_1_2++;
-      else if (p.value_category === "₹1.2 Lakh – ₹1.5 Lakh") c.l1_2_1_5++;
-      else if (p.value_category === "₹1.5 Lakh – ₹2 Lakh") c.l1_5_2++;
-      else if (p.value_category === "Above ₹2 Lakh") c.above2L++;
-    });
-
-    const coords = Object.values(map).sort((a, b) => b.totalPayout - a.totalPayout);
-
-    let html = `
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Project Coordinator</th>
-            <th>Unique Projects</th>
-            <th style="background:#eff6ff; text-align:center;">Below ₹1 Lakh</th>
-            <th style="background:#e0f2fe; text-align:center;">₹1L – ₹1.2L</th>
-            <th style="background:#e0e7ff; text-align:center;">₹1.2L – ₹1.5L</th>
-            <th style="background:#f3e8ff; text-align:center;">₹1.5L – ₹2L</th>
-            <th style="background:#fae8ff; text-align:center;">Above ₹2 Lakh</th>
-            <th class="num-cell">Total Resource Spend (Payout)</th>
-            <th class="num-cell">Est. Total Billing</th>
-            <th class="num-cell">Est. Total Margin</th>
-          </tr>
-        </thead>
-        <tbody>
-    `;
-
-    coords.forEach(c => {
-      html += `
-        <tr>
-          <td><strong>${c.name}</strong></td>
-          <td><span class="badge badge-active">${c.totalProjects} Proj</span></td>
-          <td style="text-align:center; font-weight:600;">${c.below1L}</td>
-          <td style="text-align:center; font-weight:600;">${c.l1_1_2}</td>
-          <td style="text-align:center; font-weight:600;">${c.l1_2_1_5}</td>
-          <td style="text-align:center; font-weight:600;">${c.l1_5_2}</td>
-          <td style="text-align:center; font-weight:600;">${c.above2L}</td>
-          <td class="num-cell" style="font-weight:bold; color: var(--primary);">${formatCurr(c.totalPayout)}</td>
-          <td class="num-cell">${formatCurr(c.totalBilling)}</td>
-          <td class="num-cell" style="color: ${c.totalMargin >= 0 ? 'var(--success)' : 'var(--danger)'}; font-weight:bold;">
-            ${formatCurr(c.totalMargin)}
-          </td>
-        </tr>
-      `;
-    });
-
-    html += `</tbody></table>`;
-    container.innerHTML = html;
-  }
-
-  function renderTechnologySection() {
-    renderTechDonutChart("chart-tech-donut");
-    const techStats = {};
-    filteredProjects.forEach(p => {
-      if (!techStats[p.technology]) {
-        techStats[p.technology] = { tech: p.technology, count: 0, billing: 0, payout: 0, margin: 0 };
-      }
-      techStats[p.technology].count++;
-      techStats[p.technology].billing += p.total_billing;
-      techStats[p.technology].payout += p.total_payout;
-      techStats[p.technology].margin += p.margin;
-    });
-
-    const list = Object.values(techStats).sort((a, b) => b.payout - a.payout);
-    let html = `
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Technology Vertical</th>
-            <th>Unique Project Count</th>
-            <th class="num-cell">Total Resource Payout</th>
-            <th class="num-cell">Est. Total Billing</th>
-            <th class="num-cell">Est. Total Margin</th>
-          </tr>
-        </thead>
-        <tbody>
-    `;
-
-    list.forEach(t => {
-      html += `
-        <tr>
-          <td><strong>${t.tech}</strong></td>
-          <td>${t.count}</td>
-          <td class="num-cell" style="font-weight:bold; color:var(--primary);">${formatCurr(t.payout)}</td>
-          <td class="num-cell">${formatCurr(t.billing)}</td>
-          <td class="num-cell" style="color:${t.margin >= 0 ? 'var(--success)' : 'var(--danger)'}; font-weight:bold;">
-            ${formatCurr(t.margin)}
-          </td>
-        </tr>
-      `;
-    });
-    html += `</tbody></table>`;
-
-    const el = document.getElementById("table-tech-matrix");
-    if (el) el.innerHTML = html;
-  }
-
-  function renderMarginSection() {
-    const list = filteredProjects.slice(0, 30);
-    renderMasterTable("table-margin-emp", list);
-  }
-
-  function renderHoursSection() {
-    document.getElementById("hours-total-val").innerText = `${filteredProjects.length} unique projects`;
-    document.getElementById("hours-avg-val").innerText = `4-5 hrs / day avg`;
-  }
-
-  function renderDqSection() {
-    const dq = runDataQualityAudit(normalizedProjects);
-    document.getElementById("dq-score-val").innerText = `${dq.score}%`;
-    document.getElementById("dq-dup-inv").innerText = dq.summary.duplicateInvoices;
-    document.getElementById("dq-dup-con").innerText = dq.summary.duplicateConsultants;
-    document.getElementById("dq-miss-fin").innerText = `${dq.summary.missingBilling} / ${dq.summary.missingPayout}`;
-    document.getElementById("dq-invalid-dates").innerText = dq.summary.invalidDates;
-
-    let html = `
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Row #</th>
-            <th>Anomaly Type</th>
-            <th>Field Name</th>
-            <th>Offending Value</th>
-            <th>Severity</th>
-          </tr>
-        </thead>
-        <tbody>
-    `;
-
-    dq.errors.forEach(e => {
-      html += `
-        <tr>
-          <td>Row ${e.row}</td>
-          <td><strong>${e.type}</strong></td>
-          <td><code>${e.field}</code></td>
-          <td>${e.value}</td>
-          <td><span class="badge ${e.severity === 'High' ? 'badge-cancelled' : 'badge-onhold'}">${e.severity}</span></td>
-        </tr>
-      `;
-    });
-    html += `</tbody></table>`;
-
-    const el = document.getElementById("table-dq-log");
-    if (el) el.innerHTML = html;
-  }
-
-  function renderMasterTable(containerId, projectsList) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-
-    let html = `
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Inv No</th>
-            <th>Coordinator</th>
-            <th>Support Name</th>
-            <th>Tech</th>
-            <th>Project Name (Service)</th>
-            <th>Project Person (Consultant)</th>
-            <th>Client Name</th>
-            <th>Payments Combined</th>
-            <th class="num-cell">Consolidated Total Payout</th>
-            <th>Payout Tier</th>
-            <th>Status</th>
-            <th>Notes / Remarks</th>
-          </tr>
-        </thead>
-        <tbody>
-    `;
-
-    projectsList.forEach(p => {
-      html += `
-        <tr>
-          <td><code>${p.invoice_number}</code></td>
-          <td><strong>${p.coordinator}</strong></td>
-          <td>${p.support_name}</td>
-          <td>${p.technology}</td>
-          <td>${p.service}</td>
-          <td><strong>${p.consultant}</strong></td>
-          <td>${p.client}</td>
-          <td><span class="badge badge-active">${p.paymentCount || 1} payment(s)</span></td>
-          <td class="num-cell" style="font-weight:bold; color: var(--primary);">${formatCurr(p.total_payout)}</td>
-          <td><span class="badge">${p.value_category}</span></td>
-          <td><span class="badge badge-${p.status.toLowerCase().replace(' ', '')}">${p.status}</span></td>
-          <td style="font-size:0.75rem; color:var(--text-secondary); max-width:250px; overflow:hidden; text-overflow:ellipsis;">${p.notes}</td>
-        </tr>
-      `;
-    });
-
-    html += `</tbody></table>`;
-    container.innerHTML = html;
-  }
-
-  function renderBillingPayoutChart(canvasId) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-    if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
-
-    const coords = [...new Set(filteredProjects.map(p => p.coordinator))];
-    const payoutData = coords.map(c => filteredProjects.filter(p => p.coordinator === c).reduce((a, r) => a + r.total_payout, 0));
-
-    chartInstances[canvasId] = new Chart(canvas.getContext("2d"), {
-      type: "bar",
-      data: {
-        labels: coords,
-        datasets: [
-          { label: "Consolidated Resource Payout", data: payoutData, backgroundColor: "#2563eb", borderRadius: 4 }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: { y: { ticks: { callback: v => formatCurr(v) } } }
+      const item = map.get(p.coordinator);
+      item.projects++;
+      item.clients.add(p.client);
+      item.supports.add(p.support);
+      item.tiers[p.tier] = (item.tiers[p.tier] || 0) + 1;
+      if (p.rate !== null) {
+        item.payout += p.rate;
+        item.rateCount++;
       }
     });
+    return [...map.values()].sort((a, b) => b.payout - a.payout);
   }
-
-  function renderMonthlyMarginChart(canvasId) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-    if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
-
-    const categories = [
-      "Below ₹1 Lakh",
-      "₹1 Lakh – ₹1.2 Lakh",
-      "₹1.2 Lakh – ₹1.5 Lakh",
-      "₹1.5 Lakh – ₹2 Lakh",
-      "Above ₹2 Lakh"
-    ];
-    const payoutData = categories.map(cat => filteredProjects.filter(p => p.value_category === cat).reduce((a, r) => a + r.total_payout, 0));
-
-    chartInstances[canvasId] = new Chart(canvas.getContext("2d"), {
-      type: "line",
-      data: {
-        labels: categories,
-        datasets: [{
-          label: "Resource Spend by Consolidated Tier",
-          data: payoutData,
-          borderColor: "#10b981",
-          backgroundColor: "rgba(16, 185, 129, 0.1)",
-          fill: true,
-          tension: 0.3,
-          borderWidth: 3
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: { y: { ticks: { callback: v => formatCurr(v) } } }
+ 
+  function renderCoordinatorTable(containerId) {
+    const rows = coordinatorStats();
+    const html = rows.map(item => `
+      <tr>
+        <td><strong>${esc(item.name)}</strong></td>
+        <td class="num">${formatNumber(item.projects)}</td>
+        <td class="num">${formatNumber(item.supports.size)}</td>
+        <td class="num">${formatNumber(item.clients.size)}</td>
+        <td class="num money">${formatINR(item.payout)}</td>
+        <td class="num">${item.rateCount ? formatINR(item.payout / item.rateCount) : '—'}</td>
+        <td class="num">${item.tiers['Below ₹1 Lakh'] || 0}</td>
+        <td class="num">${(item.tiers['₹1 Lakh – ₹1.2 Lakh'] || 0) + (item.tiers['₹1.2 Lakh – ₹1.5 Lakh'] || 0)}</td>
+        <td class="num">${(item.tiers['₹1.5 Lakh – ₹2 Lakh'] || 0) + (item.tiers['Above ₹2 Lakh'] || 0)}</td>
+      </tr>`).join('');
+ 
+    $(containerId).innerHTML = `
+      <table class="data-table">
+        <thead><tr>
+          <th>Coordinator</th><th class="num">Projects</th><th class="num">Support Names</th><th class="num">Clients</th>
+          <th class="num">Total Payout</th><th class="num">Avg Payout</th><th class="num">&lt; ₹1L</th><th class="num">₹1L–₹1.5L</th><th class="num">₹1.5L+</th>
+        </tr></thead>
+        <tbody>${html || '<tr><td colspan="9" class="empty-cell">No matching records</td></tr>'}</tbody>
+      </table>`;
+  }
+ 
+  function renderSupportTable() {
+    const rows = aggregate(state.filtered, 'support');
+    $('table-support').innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Support / Individual</th><th class="num">Projects</th><th class="num">Clients</th><th class="num">Consultants</th><th class="num">Total Payout</th><th class="num">Avg Payout</th></tr></thead>
+        <tbody>${rows.map(x => `<tr><td><strong>${esc(x.name)}</strong></td><td class="num">${x.projects}</td><td class="num">${x.clients.size}</td><td class="num">${x.consultants.size}</td><td class="num money">${formatINR(x.payout)}</td><td class="num">${x.rates ? formatINR(x.payout / x.rates) : '—'}</td></tr>`).join('') || '<tr><td colspan="6" class="empty-cell">No matching records</td></tr>'}</tbody>
+      </table>`;
+  }
+ 
+  function renderClientTable() {
+    const rows = aggregate(state.filtered, 'client');
+    $('table-clients').innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Client</th><th class="num">Projects</th><th class="num">Consultants</th><th class="num">Coordinators</th><th class="num">Total Payout</th><th class="num">Avg Payout</th></tr></thead>
+        <tbody>${rows.map(x => `<tr><td><strong>${esc(x.name)}</strong></td><td class="num">${x.projects}</td><td class="num">${x.consultants.size}</td><td class="num">${x.coordinators.size}</td><td class="num money">${formatINR(x.payout)}</td><td class="num">${x.rates ? formatINR(x.payout / x.rates) : '—'}</td></tr>`).join('') || '<tr><td colspan="6" class="empty-cell">No matching records</td></tr>'}</tbody>
+      </table>`;
+  }
+ 
+  function renderConsultantTable() {
+    const projects = [...state.filtered].sort((a, b) => (b.rate ?? -Infinity) - (a.rate ?? -Infinity));
+    $('table-consultants').innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Consultant</th><th>Client</th><th>Coordinator</th><th>Support / Individual</th><th class="num">Payments</th><th class="num">Payout</th><th>Payout Tier</th></tr></thead>
+        <tbody>${projects.map(p => `<tr><td><strong>${esc(p.consultant)}</strong></td><td>${esc(p.client)}</td><td>${esc(p.coordinator)}</td><td>${esc(p.support)}</td><td class="num">${p.paymentCount}</td><td class="num money">${formatINR(p.rate)}</td><td><span class="tier-badge">${esc(p.tier)}</span></td></tr>`).join('') || '<tr><td colspan="7" class="empty-cell">No matching records</td></tr>'}</tbody>
+      </table>`;
+  }
+ 
+  function renderMasterTable() {
+    const projects = [...state.filtered].sort((a, b) => a.coordinator.localeCompare(b.coordinator) || (b.rate ?? -Infinity) - (a.rate ?? -Infinity));
+    $('table-master').innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Coordinator</th><th>Support / Individual</th><th>Client</th><th>Consultant</th><th class="num">Payments Combined</th><th class="num">Consolidated Payout</th><th>Payout Tier</th><th>Source Row(s)</th></tr></thead>
+        <tbody>${projects.map(p => `<tr><td><strong>${esc(p.coordinator)}</strong></td><td>${esc(p.support)}</td><td>${esc(p.client)}</td><td>${esc(p.consultant)}</td><td class="num">${p.paymentCount}</td><td class="num money">${formatINR(p.rate)}</td><td><span class="tier-badge">${esc(p.tier)}</span></td><td>${esc(p.sourceRows.join(', '))}</td></tr>`).join('') || '<tr><td colspan="8" class="empty-cell">No matching records</td></tr>'}</tbody>
+      </table>`;
+  }
+ 
+  function renderDataQuality() {
+    $('dq-source-rows').textContent = formatNumber(state.sourceRowCount);
+    $('dq-blank-rows').textContent = formatNumber(state.blankRowCount);
+    $('dq-missing-rates').textContent = formatNumber(state.parsedRows.filter(r => r.rate === null).length);
+    $('dq-duplicate-groups').textContent = formatNumber(state.duplicateGroups);
+ 
+    $('table-dq').innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>CSV Row</th><th>Issue</th><th>Field</th><th>Value / Context</th><th>Severity</th></tr></thead>
+        <tbody>${state.qualityIssues.map(issue => `<tr><td>${esc(issue.row)}</td><td><strong>${esc(issue.type)}</strong></td><td>${esc(issue.field)}</td><td>${esc(issue.value)}</td><td><span class="severity severity-${issue.severity.toLowerCase()}">${esc(issue.severity)}</span></td></tr>`).join('') || '<tr><td colspan="5" class="empty-cell">No data quality issues detected</td></tr>'}</tbody>
+      </table>`;
+  }
+ 
+  function chartColors(count) {
+    const palette = ['#2563eb', '#0ea5e9', '#14b8a6', '#22c55e', '#84cc16', '#f59e0b', '#f97316', '#ef4444', '#8b5cf6', '#ec4899'];
+    return Array.from({ length: count }, (_, i) => palette[i % palette.length]);
+  }
+ 
+  function renderChart(id, config) {
+    const canvas = $(id);
+    if (!canvas || typeof Chart === 'undefined') return;
+    if (state.charts[id]) state.charts[id].destroy();
+    state.charts[id] = new Chart(canvas.getContext('2d'), config);
+  }
+ 
+  function barOptions(horizontal = false) {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: horizontal ? 'y' : 'x',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: horizontal ? { ticks: { callback: value => formatINR(Number(value)) } } : { ticks: { maxRotation: 45, minRotation: 0 } },
+        y: horizontal ? { ticks: { autoSkip: false } } : { beginAtZero: true, ticks: { callback: value => formatINR(Number(value)) } }
       }
+    };
+  }
+ 
+  function renderOverviewCharts() {
+    const coordinators = coordinatorStats().slice(0, 12);
+    renderChart('chart-coordinator-payout', {
+      type: 'bar',
+      data: { labels: coordinators.map(x => x.name), datasets: [{ data: coordinators.map(x => x.payout), backgroundColor: chartColors(coordinators.length), borderRadius: 6 }] },
+      options: barOptions(false)
+    });
+ 
+    const tierCounts = TIER_ORDER.map(tier => state.filtered.filter(p => p.tier === tier).length);
+    renderChart('chart-tier-distribution', {
+      type: 'doughnut',
+      data: { labels: TIER_ORDER, datasets: [{ data: tierCounts, backgroundColor: chartColors(TIER_ORDER.length), borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+ 
+    const clients = aggregate(state.filtered, 'client').slice(0, 10);
+    renderChart('chart-client-payout', {
+      type: 'bar',
+      data: { labels: clients.map(x => x.name), datasets: [{ data: clients.map(x => x.payout), backgroundColor: chartColors(clients.length), borderRadius: 6 }] },
+      options: barOptions(true)
+    });
+ 
+    const supports = aggregate(state.filtered, 'support').slice(0, 10);
+    renderChart('chart-support-payout', {
+      type: 'bar',
+      data: { labels: supports.map(x => x.name), datasets: [{ data: supports.map(x => x.payout), backgroundColor: chartColors(supports.length), borderRadius: 6 }] },
+      options: barOptions(true)
     });
   }
-
-  function renderTechDonutChart(canvasId) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-    if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
-
-    const counts = {};
-    filteredProjects.forEach(p => counts[p.technology] = (counts[p.technology] || 0) + 1);
-
-    chartInstances[canvasId] = new Chart(canvas.getContext("2d"), {
-      type: "doughnut",
-      data: {
-        labels: Object.keys(counts),
-        datasets: [{
-          data: Object.values(counts),
-          backgroundColor: ["#2563eb", "#10b981", "#f59e0b", "#9333ea", "#ec4899", "#3b82f6"]
-        }]
-      },
-      options: { responsive: true, maintainAspectRatio: false }
+ 
+  function renderDetailCharts() {
+    const supports = aggregate(state.filtered, 'support').slice(0, 15);
+    renderChart('chart-support-detail', {
+      type: 'bar',
+      data: { labels: supports.map(x => x.name), datasets: [{ data: supports.map(x => x.payout), backgroundColor: chartColors(supports.length), borderRadius: 6 }] },
+      options: barOptions(true)
+    });
+ 
+    const clients = aggregate(state.filtered, 'client').slice(0, 15);
+    renderChart('chart-clients-detail', {
+      type: 'bar',
+      data: { labels: clients.map(x => x.name), datasets: [{ data: clients.map(x => x.payout), backgroundColor: chartColors(clients.length), borderRadius: 6 }] },
+      options: barOptions(true)
     });
   }
-
-  function renderValueDistributionChart(canvasId) {
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-    if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
-
-    const categories = [
-      "Below ₹1 Lakh",
-      "₹1 Lakh – ₹1.2 Lakh",
-      "₹1.2 Lakh – ₹1.5 Lakh",
-      "₹1.5 Lakh – ₹2 Lakh",
-      "Above ₹2 Lakh"
-    ];
-    const counts = categories.map(c => filteredProjects.filter(p => p.value_category === c).length);
-
-    chartInstances[canvasId] = new Chart(canvas.getContext("2d"), {
-      type: "bar",
-      data: {
-        labels: categories,
-        datasets: [{ label: "Unique Project Count", data: counts, backgroundColor: "#3b82f6", borderRadius: 6 }]
-      },
-      options: { indexAxis: "y", responsive: true, maintainAspectRatio: false }
-    });
+ 
+  function renderAll() {
+    renderKpis();
+    renderCoordinatorTable('table-overview-coordinators');
+    renderCoordinatorTable('table-coordinators');
+    renderSupportTable();
+    renderClientTable();
+    renderConsultantTable();
+    renderMasterTable();
+    renderDataQuality();
+    renderOverviewCharts();
+    renderDetailCharts();
   }
-
-  function setupEventListeners() {
-    document.querySelectorAll(".nav-tab").forEach(tab => {
-      tab.addEventListener("click", (e) => {
-        document.querySelectorAll(".nav-tab").forEach(t => t.classList.remove("active"));
-        tab.classList.add("active");
-        activeTab = tab.getAttribute("data-tab");
-        renderActiveTab();
-      });
-    });
-
-    document.getElementById("filter-search").addEventListener("input", e => { filters.search = e.target.value; applyFilters(); });
-    document.getElementById("filter-month").addEventListener("change", e => { filters.month = e.target.value; applyFilters(); });
-    document.getElementById("filter-coordinator").addEventListener("change", e => { filters.coordinator = e.target.value; applyFilters(); });
-    document.getElementById("filter-tech").addEventListener("change", e => { filters.technology = e.target.value; applyFilters(); });
-    document.getElementById("filter-status").addEventListener("change", e => { filters.status = e.target.value; applyFilters(); });
-    document.getElementById("filter-value").addEventListener("change", e => { filters.valueCategory = e.target.value; applyFilters(); });
-
-    document.getElementById("btn-reset-filters").addEventListener("click", () => {
-      filters.search = ""; filters.month = "All"; filters.coordinator = "All";
-      filters.technology = "All"; filters.empType = "All"; filters.channel = "All";
-      filters.status = "All"; filters.valueCategory = "All";
-      document.getElementById("filter-search").value = "";
+ 
+  function showDashboard() {
+    $('empty-state').classList.add('is-hidden');
+    $('dashboard-shell').classList.remove('is-hidden');
+  }
+ 
+  function openUpload() {
+    $('upload-error').classList.add('is-hidden');
+    $('upload-error').textContent = '';
+    $('upload-modal').classList.remove('is-hidden');
+  }
+ 
+  function closeUpload() {
+    $('upload-modal').classList.add('is-hidden');
+  }
+ 
+  function setUploadError(message) {
+    const el = $('upload-error');
+    el.textContent = message;
+    el.classList.remove('is-hidden');
+  }
+ 
+  async function handleFile(file) {
+    if (!file) return;
+    if (!/\.csv$/i.test(file.name)) {
+      setUploadError('Please upload a .csv file.');
+      return;
+    }
+ 
+    try {
+      const text = decodeCsvBuffer(await file.arrayBuffer());
+      const csvRows = parseCSV(text);
+      state.parsedRows = mapCsvRows(csvRows);
+      if (!state.parsedRows.length) throw new Error('No project records were found after removing blank rows.');
+      state.projects = consolidateRows(state.parsedRows);
+      state.filtered = [...state.projects];
+      state.fileName = file.name;
+      state.filters = { search: '', coordinator: 'All', support: 'All', client: 'All', tier: 'All' };
+      $('filter-search').value = '';
+      $('filter-tier').value = 'All';
+      $('file-badge').textContent = `${file.name} • ${state.projects.length} projects`;
+      populateFilters();
+      showDashboard();
+      closeUpload();
       applyFilters();
-    });
-
-    document.getElementById("btn-currency-toggle").addEventListener("click", () => {
-      currencySymbol = currencySymbol === "₹" ? "$" : "₹";
-      document.getElementById("currency-symbol-label").innerText = currencySymbol;
-      applyFilters();
-    });
-
-    document.getElementById("btn-open-upload").addEventListener("click", () => {
-      document.getElementById("upload-modal").style.display = "flex";
-    });
-
-    document.getElementById("btn-close-upload").addEventListener("click", () => {
-      document.getElementById("upload-modal").style.display = "none";
-    });
-
-    document.getElementById("file-input").addEventListener("change", (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        try {
-          const data = new Uint8Array(evt.target.result);
-          const workbook = XLSX.read(data, { type: "array" });
-          const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-          if (json && json.length > 0) {
-            rawDataset = json;
-            processData();
-            document.getElementById("upload-modal").style.display = "none";
-            alert(`Imported ${json.length} records successfully! Project consolidation applied.`);
-          }
-        } catch (err) {
-          alert("Could not parse file. Upload a valid CSV or Excel document.");
-        }
-      };
-      reader.readAsArrayBuffer(file);
+    } catch (error) {
+      console.error(error);
+      setUploadError(error.message || 'Could not read the CSV file.');
+    }
+  }
+ 
+  function resetFilters() {
+    state.filters = { search: '', coordinator: 'All', support: 'All', client: 'All', tier: 'All' };
+    $('filter-search').value = '';
+    $('filter-coordinator').value = 'All';
+    $('filter-support').value = 'All';
+    $('filter-client').value = 'All';
+    $('filter-tier').value = 'All';
+    applyFilters();
+  }
+ 
+  function switchTab(tabName, button) {
+    state.activeTab = tabName;
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.add('is-hidden'));
+    $(`tab-${tabName}`).classList.remove('is-hidden');
+    document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+    button.classList.add('active');
+  }
+ 
+  function setupEvents() {
+    $('btn-open-upload').addEventListener('click', openUpload);
+    $('btn-empty-upload').addEventListener('click', openUpload);
+    $('btn-close-upload').addEventListener('click', closeUpload);
+    $('upload-modal').addEventListener('click', event => { if (event.target === $('upload-modal')) closeUpload(); });
+    $('file-input').addEventListener('change', event => handleFile(event.target.files?.[0]));
+ 
+    $('filter-search').addEventListener('input', event => { state.filters.search = event.target.value.trim(); applyFilters(); });
+    $('filter-coordinator').addEventListener('change', event => { state.filters.coordinator = event.target.value; applyFilters(); });
+    $('filter-support').addEventListener('change', event => { state.filters.support = event.target.value; applyFilters(); });
+    $('filter-client').addEventListener('change', event => { state.filters.client = event.target.value; applyFilters(); });
+    $('filter-tier').addEventListener('change', event => { state.filters.tier = event.target.value; applyFilters(); });
+    $('btn-reset-filters').addEventListener('click', resetFilters);
+ 
+    document.querySelectorAll('.nav-tab').forEach(button => {
+      button.addEventListener('click', () => switchTab(button.dataset.tab, button));
     });
   }
-
-  document.addEventListener("DOMContentLoaded", () => {
-    setupEventListeners();
-    processData();
-  });
+ 
+  document.addEventListener('DOMContentLoaded', setupEvents);
 })();
