@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   // CHANGE ONLY THIS LINE when your CSV filename/path changes.
-  const DATA_FILE = 'Data/August.csv';
+  const DATA_FILE = 'Data/July.csv';
 
   const EXPECTED_HEADERS = {
     coordinator: ['coordinator name', 'coordinator'],
