@@ -1,7 +1,17 @@
 (() => {
   'use strict';
-  // CHANGE ONLY THIS LINE when your CSV filename/path changes.
-  const DATA_FILE = 'Data/August.csv?v=' + Date.now();
+
+  // ------------------------------------------------------------------
+  // MONTH DATA SOURCES — add each month here to make it selectable in the
+  // Month filter. The first entry loads by default.
+  //
+  // File paths are relative to index.html and must contain the columns:
+  // Coordinator Name, Support Name, Client, Consultant Name, Rate.
+  // ------------------------------------------------------------------
+  const MONTH_FILES = [
+    { label: 'August', file: 'Data/August.csv' },
+    { label: 'July', file: 'Data/July.csv' }
+  ];
 
   const EXPECTED_HEADERS = {
     coordinator: ['coordinator name', 'coordinator'],
@@ -21,6 +31,7 @@
 
   const state = {
     fileName: '',
+    selectedMonthFile: (MONTH_FILES[0] && MONTH_FILES[0].file) || '',
     sourceRowCount: 0,
     blankRowCount: 0,
     parsedRows: [],
@@ -282,6 +293,21 @@
     fillSelect('filter-client', uniqueValues('client'), 'All Clients');
   }
 
+  // Builds the Month dropdown from MONTH_FILES. Called once on startup —
+  // it never needs to be touched when you add a new month, only
+  // MONTH_FILES above does.
+  function populateMonthFilter() {
+    const select = $('filter-month');
+    if (!MONTH_FILES.length) {
+      select.innerHTML = '<option value="">No months configured</option>';
+      select.disabled = true;
+      return;
+    }
+    select.disabled = false;
+    select.innerHTML = MONTH_FILES.map(m => `<option value="${esc(m.file)}">${esc(m.label)}</option>`).join('');
+    select.value = state.selectedMonthFile;
+  }
+
   function applyFilters() {
     const q = state.filters.search.toLowerCase();
     state.filtered = state.projects.filter(project => {
@@ -540,12 +566,22 @@
     $('dashboard-shell').classList.remove('is-hidden');
   }
 
-  async function loadDataFile() {
+  // Loads whichever CSV path is passed in (defaults to the currently
+  // selected month's file). Re-run whenever the Month dropdown changes.
+  async function loadDataFile(fileUrl) {
+    const targetFile = fileUrl || state.selectedMonthFile;
+    if (!targetFile) return;
+
     const badge = $('file-badge');
-    badge.textContent = `Loading ${DATA_FILE}…`;
+    const cacheBustedUrl = `${targetFile}${targetFile.includes('?') ? '&' : '?'}v=${Date.now()}`;
+    badge.classList.remove('file-badge-error');
+    badge.textContent = `Loading ${targetFile}…`;
+
+    const existingError = document.getElementById('data-load-error');
+    if (existingError) existingError.remove();
 
     try {
-      const response = await fetch(DATA_FILE, { cache: 'no-store' });
+      const response = await fetch(cacheBustedUrl, { cache: 'no-store' });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText || 'Unable to load file'}`);
       }
@@ -557,11 +593,13 @@
       state.parsedRows = mapCsvRows(csvRows);
       state.projects = consolidateRows(state.parsedRows);
       state.filtered = [...state.projects];
-      state.fileName = DATA_FILE.split('/').pop() || DATA_FILE;
+      state.fileName = targetFile.split('/').pop() || targetFile;
+      state.selectedMonthFile = targetFile;
       state.filters = { search: '', coordinator: 'All', support: 'All', client: 'All', tier: 'All' };
 
       $('filter-search').value = '';
       $('filter-tier').value = 'All';
+      $('filter-month').value = targetFile;
       badge.textContent = `${state.fileName} • ${state.projects.length} projects`;
 
       populateFilters();
@@ -572,15 +610,12 @@
       badge.textContent = 'CSV load failed';
       badge.classList.add('file-badge-error');
 
-      const existing = document.getElementById('data-load-error');
-      if (existing) existing.remove();
-
       const message = document.createElement('div');
       message.id = 'data-load-error';
       message.className = 'data-load-error';
       message.innerHTML = `
         <strong>Could not load dashboard CSV.</strong>
-        <span>Check <code>DATA_FILE</code> in <code>app.js</code> and make sure the CSV exists in your deployed project.</span>
+        <span>Check the file path in <code>MONTH_FILES</code> in <code>app.js</code> and make sure <code>${esc(targetFile)}</code> exists in your deployed project.</span>
         <small>${esc(error.message)}</small>
       `;
       document.body.insertBefore(message, document.querySelector('.dashboard-shell'));
@@ -607,6 +642,7 @@
 
   function setupEvents() {
     $('filter-search').addEventListener('input', event => { state.filters.search = event.target.value.trim(); applyFilters(); });
+    $('filter-month').addEventListener('change', event => { loadDataFile(event.target.value); });
     $('filter-coordinator').addEventListener('change', event => { state.filters.coordinator = event.target.value; applyFilters(); });
     $('filter-support').addEventListener('change', event => { state.filters.support = event.target.value; applyFilters(); });
     $('filter-client').addEventListener('change', event => { state.filters.client = event.target.value; applyFilters(); });
@@ -620,6 +656,7 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     setupEvents();
-    loadDataFile();
+    populateMonthFilter();
+    loadDataFile(state.selectedMonthFile);
   });
 })();
