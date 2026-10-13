@@ -10,7 +10,8 @@
   // ------------------------------------------------------------------
   const MONTH_FILES = [
     { label: 'August', file: 'Data/August.csv' },
-    { label: 'July', file: 'Data/July.csv' }
+    { label: 'July', file: 'Data/July.csv' },
+    { label: 'September', file: 'Data/Sep.csv' }
   ];
 
   const EXPECTED_HEADERS = {
