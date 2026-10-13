@@ -9,9 +9,9 @@
   // Coordinator Name, Support Name, Client, Consultant Name, Rate.
   // ------------------------------------------------------------------
   const MONTH_FILES = [
+    { label: 'September', file: 'Data/Sep.csv' },
     { label: 'August', file: 'Data/August.csv' },
-    { label: 'July', file: 'Data/July.csv' },
-    { label: 'September', file: 'Data/Sep.csv' }
+    { label: 'July', file: 'Data/July.csv' }
   ];
 
   const EXPECTED_HEADERS = {
