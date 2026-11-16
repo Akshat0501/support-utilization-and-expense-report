@@ -31,6 +31,9 @@
     'Above ₹2 Lakh'
   ];
 
+  const RATE_RANGE_STEP = 1000;
+  const RATE_RANGE_MAX = 500000;
+
   const state = {
     fileName: '',
     selectedMonthFile: (MONTH_FILES[0] && MONTH_FILES[0].file) || '',
@@ -43,12 +46,15 @@
     duplicateGroups: 0,
     activeTab: 'overview',
     charts: {},
+    rateBounds: { min: 0, max: RATE_RANGE_MAX },
     filters: {
       search: '',
       coordinator: 'All',
       support: 'All',
       client: 'All',
-      tier: 'All'
+      tier: 'All',
+      rateMin: 0,
+      rateMax: RATE_RANGE_STEP
     }
   };
 
@@ -297,6 +303,62 @@
     fillSelect('filter-client', uniqueValues('client'), 'All Clients');
   }
 
+  function setRateRangeBounds() {
+    const min = 0;
+    const max = RATE_RANGE_MAX;
+    const minInput = $('filter-rate-min');
+    const maxInput = $('filter-rate-max');
+
+    state.rateBounds = { min, max };
+    state.filters.rateMin = min;
+    state.filters.rateMax = max;
+    minInput.min = String(min);
+    minInput.max = String(max);
+    minInput.step = String(RATE_RANGE_STEP);
+    minInput.value = String(min);
+    maxInput.min = String(min);
+    maxInput.max = String(max);
+    maxInput.step = String(RATE_RANGE_STEP);
+    maxInput.value = String(max);
+    $('filter-rate-bounds').textContent = `Range: ${formatINR(min)} – ${formatINR(max)}`;
+    updateRateRangeDisplay();
+  }
+
+  function updateRateRangeDisplay() {
+    const minInput = $('filter-rate-min');
+    const maxInput = $('filter-rate-max');
+    const range = state.rateBounds.max - state.rateBounds.min;
+    const minPosition = range ? ((state.filters.rateMin - state.rateBounds.min) / range) * 100 : 0;
+    const maxPosition = range ? ((state.filters.rateMax - state.rateBounds.min) / range) * 100 : 100;
+
+    minInput.max = String(state.filters.rateMax);
+    maxInput.min = String(state.filters.rateMin);
+    $('filter-rate-value').textContent = `${formatINR(state.filters.rateMin)} – ${formatINR(state.filters.rateMax)}`;
+    $('filter-rate-selection').style.left = `${minPosition}%`;
+    $('filter-rate-selection').style.width = `${maxPosition - minPosition}%`;
+  }
+
+  function updateRateFilter(changedInput) {
+    const minInput = $('filter-rate-min');
+    const maxInput = $('filter-rate-max');
+    let min = Number(minInput.value);
+    let max = Number(maxInput.value);
+
+    if (min > max) {
+      if (changedInput === minInput) max = min;
+      else min = max;
+    }
+
+    state.filters.rateMin = min;
+    state.filters.rateMax = max;
+    minInput.value = String(min);
+    maxInput.value = String(max);
+    minInput.classList.toggle('active-thumb', changedInput === minInput);
+    maxInput.classList.toggle('active-thumb', changedInput === maxInput);
+    updateRateRangeDisplay();
+    applyFilters();
+  }
+
   // Builds the Month dropdown from MONTH_FILES. Called once on startup —
   // it never needs to be touched when you add a new month, only
   // MONTH_FILES above does.
@@ -319,6 +381,7 @@
       if (state.filters.support !== 'All' && project.support !== state.filters.support) return false;
       if (state.filters.client !== 'All' && project.client !== state.filters.client) return false;
       if (state.filters.tier !== 'All' && project.tier !== state.filters.tier) return false;
+      if (project.rate < state.filters.rateMin || project.rate > state.filters.rateMax) return false;
       if (q) {
         const haystack = `${project.coordinator} ${project.support} ${project.client} ${project.consultant}`.toLowerCase();
         if (!haystack.includes(q)) return false;
@@ -603,6 +666,7 @@
       state.fileName = targetFile.split('/').pop() || targetFile;
       state.selectedMonthFile = targetFile;
       state.filters = { search: '', coordinator: 'All', support: 'All', client: 'All', tier: 'All' };
+      setRateRangeBounds();
 
       $('filter-search').value = '';
       $('filter-coordinator').value = 'All';
@@ -642,6 +706,11 @@
     $('filter-support').value = 'All';
     $('filter-client').value = 'All';
     $('filter-tier').value = 'All';
+    state.filters.rateMin = state.rateBounds.min;
+    state.filters.rateMax = state.rateBounds.max;
+    $('filter-rate-min').value = String(state.rateBounds.min);
+    $('filter-rate-max').value = String(state.rateBounds.max);
+    updateRateRangeDisplay();
     applyFilters();
   }
 
@@ -660,6 +729,8 @@
     $('filter-support').addEventListener('change', event => { state.filters.support = event.target.value; applyFilters(); });
     $('filter-client').addEventListener('change', event => { state.filters.client = event.target.value; applyFilters(); });
     $('filter-tier').addEventListener('change', event => { state.filters.tier = event.target.value; applyFilters(); });
+    $('filter-rate-min').addEventListener('input', event => updateRateFilter(event.target));
+    $('filter-rate-max').addEventListener('input', event => updateRateFilter(event.target));
     $('btn-reset-filters').addEventListener('click', resetFilters);
 
     document.querySelectorAll('.nav-tab').forEach(button => {
