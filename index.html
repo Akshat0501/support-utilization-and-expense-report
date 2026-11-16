@@ -60,7 +60,7 @@
       </div>
       <div class="filter-group filter-rate-range">
         <div class="rate-range-heading">
-          <label>Support payout range</label>
+          <label>Support total payout range</label>
           <output id="filter-rate-value" aria-live="polite">All rates</output>
         </div>
         <div class="rate-range-slider" role="group" aria-label="Select support payout range">
@@ -68,7 +68,7 @@
           <input id="filter-rate-min" type="range" min="0" max="1000" step="1000" value="0" aria-label="Minimum payout rate" />
           <input id="filter-rate-max" type="range" min="0" max="1000" step="1000" value="1000" aria-label="Maximum payout rate" />
         </div>
-        <small id="filter-rate-bounds" class="rate-range-bounds"></small>
+        <small id="filter-rate-bounds" class="rate-range-bounds">Support names use their combined payout; project and client views use each project's payout.</small>
       </div>
       <button id="btn-reset-filters" class="btn btn-ghost">Reset</button>
     </section>
