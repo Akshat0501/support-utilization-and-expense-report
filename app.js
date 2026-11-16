@@ -9,6 +9,7 @@
   // Coordinator Name, Support Name, Client, Consultant Name, Rate.
   // ------------------------------------------------------------------
   const MONTH_FILES = [
+    { label: 'October', file: 'Data/Oct.csv' },
     { label: 'September', file: 'Data/Sep.csv' },
     { label: 'August', file: 'Data/August.csv' },
     { label: 'July', file: 'Data/July.csv' }
@@ -50,6 +51,8 @@
       tier: 'All'
     }
   };
+
+  let latestLoadRequest = 0;
 
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '')
@@ -572,6 +575,7 @@
   async function loadDataFile(fileUrl) {
     const targetFile = fileUrl || state.selectedMonthFile;
     if (!targetFile) return;
+    const requestId = ++latestLoadRequest;
 
     const badge = $('file-badge');
     const cacheBustedUrl = `${targetFile}${targetFile.includes('?') ? '&' : '?'}v=${Date.now()}`;
@@ -588,6 +592,8 @@
       }
 
       const buffer = await response.arrayBuffer();
+      if (requestId !== latestLoadRequest) return;
+
       const csvText = decodeCsvBuffer(buffer);
       const csvRows = parseCSV(csvText);
 
@@ -599,6 +605,9 @@
       state.filters = { search: '', coordinator: 'All', support: 'All', client: 'All', tier: 'All' };
 
       $('filter-search').value = '';
+      $('filter-coordinator').value = 'All';
+      $('filter-support').value = 'All';
+      $('filter-client').value = 'All';
       $('filter-tier').value = 'All';
       $('filter-month').value = targetFile;
       badge.textContent = `${state.fileName} • ${state.projects.length} projects`;
@@ -607,7 +616,10 @@
       showDashboard();
       applyFilters();
     } catch (error) {
+      if (requestId !== latestLoadRequest) return;
+
       console.error('Dashboard data load failed:', error);
+      $('filter-month').value = state.selectedMonthFile;
       badge.textContent = 'CSV load failed';
       badge.classList.add('file-badge-error');
 
