@@ -48,25 +48,36 @@
         <select id="filter-client"><option value="All">All Clients</option></select>
       </div>
       <div class="filter-group filter-payout-range">
-        <label for="filter-tier">Project Payout Tier</label>
-        <select id="filter-tier">
-          <option value="All">All Tiers</option>
-          <option value="Below ₹1 Lakh">Below ₹1 Lakh</option>
-          <option value="₹1 Lakh – ₹1.2 Lakh">₹1L – ₹1.2L</option>
-          <option value="₹1.2 Lakh – ₹1.5 Lakh">₹1.2L – ₹1.5L</option>
-          <option value="₹1.5 Lakh – ₹2 Lakh">₹1.5L – ₹2L</option>
-          <option value="Above ₹2 Lakh">Above ₹2 Lakh</option>
-        </select>
-        <div class="rate-range-heading">
-          <label for="filter-rate-min">Project payout range</label>
-          <output id="filter-rate-value" aria-live="polite">All rates</output>
+        <label for="payout-filter-trigger">Project Payout Tier</label>
+        <div class="payout-filter-dropdown">
+          <button id="payout-filter-trigger" class="payout-filter-trigger" type="button" aria-expanded="false" aria-controls="payout-filter-panel">
+            <span id="payout-filter-label">All Tiers</span><span class="payout-filter-chevron" aria-hidden="true">⌄</span>
+          </button>
+          <div id="payout-filter-panel" class="payout-filter-panel" hidden>
+            <section class="payout-range-section" aria-labelledby="payout-range-title">
+              <div class="payout-filter-section-title" id="payout-range-title">Filter</div>
+              <div class="rate-range-heading">
+                <label for="filter-rate-min">Project payout range</label>
+                <output id="filter-rate-value" aria-live="polite">All rates</output>
+              </div>
+              <div class="rate-range-slider" role="group" aria-label="Refine project payout range">
+                <div class="rate-range-track"><div id="filter-rate-selection" class="rate-range-selection"></div></div>
+                <input id="filter-rate-min" type="range" min="0" max="1000" step="1000" value="0" aria-label="Minimum payout rate" />
+                <input id="filter-rate-max" type="range" min="0" max="1000" step="1000" value="1000" aria-label="Maximum payout rate" />
+              </div>
+              <small id="filter-rate-bounds" class="rate-range-bounds">Refine the project payout range.</small>
+            </section>
+            <div class="payout-filter-section-title payout-tier-title">Payout tiers</div>
+            <div class="payout-tier-options" aria-label="Preset project payout tiers">
+              <button type="button" class="payout-tier-option is-selected" data-tier="All">All Tiers</button>
+              <button type="button" class="payout-tier-option" data-tier="Below ₹1 Lakh">Below ₹1 Lakh</button>
+              <button type="button" class="payout-tier-option" data-tier="₹1 Lakh – ₹1.2 Lakh">₹1 Lakh – ₹1.2 Lakh</button>
+              <button type="button" class="payout-tier-option" data-tier="₹1.2 Lakh – ₹1.5 Lakh">₹1.2 Lakh – ₹1.5 Lakh</button>
+              <button type="button" class="payout-tier-option" data-tier="₹1.5 Lakh – ₹2 Lakh">₹1.5 Lakh – ₹2 Lakh</button>
+              <button type="button" class="payout-tier-option" data-tier="Above ₹2 Lakh">Above ₹2 Lakh</button>
+            </div>
+          </div>
         </div>
-        <div class="rate-range-slider" role="group" aria-label="Refine project payout range">
-          <div class="rate-range-track"><div id="filter-rate-selection" class="rate-range-selection"></div></div>
-          <input id="filter-rate-min" type="range" min="0" max="1000" step="1000" value="0" aria-label="Minimum payout rate" />
-          <input id="filter-rate-max" type="range" min="0" max="1000" step="1000" value="1000" aria-label="Maximum payout rate" />
-        </div>
-        <small id="filter-rate-bounds" class="rate-range-bounds">Use the slider to refine the selected tier by individual project payout.</small>
       </div>
       <button id="btn-reset-filters" class="btn btn-ghost">Reset</button>
     </section>

@@ -678,11 +678,11 @@
       $('filter-coordinator').value = 'All';
       $('filter-support').value = 'All';
       $('filter-client').value = 'All';
-      $('filter-tier').value = 'All';
       $('filter-month').value = targetFile;
       badge.textContent = `${state.fileName} • ${state.projects.length} projects`;
 
       populateFilters();
+      updateTierFilterUI();
       showDashboard();
       applyFilters();
     } catch (error) {
@@ -711,7 +711,7 @@
     $('filter-coordinator').value = 'All';
     $('filter-support').value = 'All';
     $('filter-client').value = 'All';
-    $('filter-tier').value = 'All';
+    updateTierFilterUI();
     state.filters.rateMin = state.rateBounds.min;
     state.filters.rateMax = state.rateBounds.max;
     $('filter-rate-min').value = String(state.rateBounds.min);
@@ -728,13 +728,51 @@
     button.classList.add('active');
   }
 
+  function updateTierFilterUI() {
+    const selectedTier = state.filters.tier;
+    $('payout-filter-label').textContent = selectedTier === 'All' ? 'All Tiers' : selectedTier;
+    document.querySelectorAll('.payout-tier-option').forEach(button => {
+      const selected = button.dataset.tier === selectedTier;
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    });
+  }
+
+  function setTierFilter(tier) {
+    state.filters.tier = tier;
+    updateTierFilterUI();
+    $('payout-filter-panel').hidden = true;
+    $('payout-filter-trigger').setAttribute('aria-expanded', 'false');
+    applyFilters();
+  }
+
   function setupEvents() {
     $('filter-search').addEventListener('input', event => { state.filters.search = event.target.value.trim(); applyFilters(); });
     $('filter-month').addEventListener('change', event => { loadDataFile(event.target.value); });
     $('filter-coordinator').addEventListener('change', event => { state.filters.coordinator = event.target.value; applyFilters(); });
     $('filter-support').addEventListener('change', event => { state.filters.support = event.target.value; applyFilters(); });
     $('filter-client').addEventListener('change', event => { state.filters.client = event.target.value; applyFilters(); });
-    $('filter-tier').addEventListener('change', event => { state.filters.tier = event.target.value; applyFilters(); });
+    $('payout-filter-trigger').addEventListener('click', () => {
+      const panel = $('payout-filter-panel');
+      panel.hidden = !panel.hidden;
+      $('payout-filter-trigger').setAttribute('aria-expanded', String(!panel.hidden));
+    });
+    document.querySelectorAll('.payout-tier-option').forEach(button => {
+      button.addEventListener('click', () => setTierFilter(button.dataset.tier));
+    });
+    document.addEventListener('click', event => {
+      if (!event.target.closest('.payout-filter-dropdown')) {
+        $('payout-filter-panel').hidden = true;
+        $('payout-filter-trigger').setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !$('payout-filter-panel').hidden) {
+        $('payout-filter-panel').hidden = true;
+        $('payout-filter-trigger').setAttribute('aria-expanded', 'false');
+        $('payout-filter-trigger').focus();
+      }
+    });
     $('filter-rate-min').addEventListener('input', event => updateRateFilter(event.target));
     $('filter-rate-max').addEventListener('input', event => updateRateFilter(event.target));
     $('btn-reset-filters').addEventListener('click', resetFilters);
