@@ -48,7 +48,7 @@
         <select id="filter-client"><option value="All">All Clients</option></select>
       </div>
       <div class="filter-group">
-        <label for="filter-tier">Payout Tier</label>
+        <label for="filter-tier">Project Payout Tier</label>
         <select id="filter-tier">
           <option value="All">All Tiers</option>
           <option value="Below ₹1 Lakh">Below ₹1 Lakh</option>
@@ -68,7 +68,7 @@
           <input id="filter-rate-min" type="range" min="0" max="1000" step="1000" value="0" aria-label="Minimum payout rate" />
           <input id="filter-rate-max" type="range" min="0" max="1000" step="1000" value="1000" aria-label="Maximum payout rate" />
         </div>
-        <small id="filter-rate-bounds" class="rate-range-bounds">Support names use their combined payout; project and client views use each project's payout.</small>
+        <small id="filter-rate-bounds" class="rate-range-bounds">Slider: support's combined monthly payout. Tier and slider also filter individual projects and clients.</small>
       </div>
       <button id="btn-reset-filters" class="btn btn-ghost">Reset</button>
     </section>

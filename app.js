@@ -377,27 +377,33 @@
 
   function applyFilters() {
     const q = state.filters.search.toLowerCase();
-    const matchesOtherFilters = project => {
+    const matchesSharedFilters = project => {
       if (state.filters.coordinator !== 'All' && project.coordinator !== state.filters.coordinator) return false;
       if (state.filters.support !== 'All' && project.support !== state.filters.support) return false;
       if (state.filters.client !== 'All' && project.client !== state.filters.client) return false;
-      if (state.filters.tier !== 'All' && project.tier !== state.filters.tier) return false;
       if (q) {
         const haystack = `${project.coordinator} ${project.support} ${project.client} ${project.consultant}`.toLowerCase();
         if (!haystack.includes(q)) return false;
       }
       return true;
     };
-    const matchingProjects = state.projects.filter(matchesOtherFilters);
-    const matchingSupports = new Set(
-      aggregate(matchingProjects, 'support')
-        .filter(support => support.payout >= state.filters.rateMin && support.payout <= state.filters.rateMax)
-        .map(support => support.name)
-    );
+    state.supportFiltered = aggregate(state.projects, 'support').filter(support => {
+      if (support.payout < state.filters.rateMin || support.payout > state.filters.rateMax) return false;
+      if (state.filters.coordinator !== 'All' && !support.coordinators.has(state.filters.coordinator)) return false;
+      if (state.filters.support !== 'All' && support.name !== state.filters.support) return false;
+      if (state.filters.client !== 'All' && !support.clients.has(state.filters.client)) return false;
+      if (q) {
+        const haystack = `${support.name} ${[...support.clients, ...support.consultants, ...support.coordinators].join(' ')}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
 
-    state.supportFiltered = matchingProjects.filter(project => matchingSupports.has(project.support || 'Unassigned'));
-    state.filtered = matchingProjects.filter(project =>
-      project.rate >= state.filters.rateMin && project.rate <= state.filters.rateMax
+    state.filtered = state.projects.filter(project =>
+      matchesSharedFilters(project) &&
+      (state.filters.tier === 'All' || project.tier === state.filters.tier) &&
+      project.rate >= state.filters.rateMin &&
+      project.rate <= state.filters.rateMax
     );
 
     renderAll();
@@ -424,7 +430,7 @@
     $('kpi-projects').textContent = formatNumber(projects.length);
     $('kpi-source-rows').textContent = `${formatNumber(state.parsedRows.length)} parsed source rows`;
     $('kpi-coordinators').textContent = formatNumber(new Set(projects.map(p => p.coordinator)).size);
-    $('kpi-support-count').textContent = `${formatNumber(aggregate(state.supportFiltered, 'support').length)} support names in range`;
+    $('kpi-support-count').textContent = `${formatNumber(state.supportFiltered.length)} support names in range`;
     $('kpi-total-payout').textContent = formatINR(total);
     $('kpi-average-payout').textContent = formatINR(average);
     $('kpi-median-payout').textContent = `Median ${formatINR(median(rates))}`;
@@ -509,7 +515,7 @@
   }
 
   function renderSupportTable() {
-    const rows = aggregate(state.supportFiltered, 'support');
+    const rows = state.supportFiltered;
     $('table-support').innerHTML = `
       <table class="data-table">
         <thead><tr><th>Support / Individual</th><th class="num">Projects</th><th class="num">Clients</th><th class="num">Consultants</th><th class="num">Total Payout</th><th class="num">Avg Payout</th></tr></thead>
@@ -603,7 +609,7 @@
       options: barOptions(true)
     });
 
-    const supports = aggregate(state.supportFiltered, 'support').slice(0, 10);
+    const supports = state.supportFiltered.slice(0, 10);
     renderChart('chart-support-payout', {
       type: 'bar',
       data: { labels: supports.map(x => x.name), datasets: [{ data: supports.map(x => x.payout), backgroundColor: chartColors(supports.length), borderRadius: 6 }] },
@@ -612,7 +618,7 @@
   }
 
   function renderDetailCharts() {
-    const supports = aggregate(state.supportFiltered, 'support').slice(0, 15);
+    const supports = state.supportFiltered.slice(0, 15);
     renderChart('chart-support-detail', {
       type: 'bar',
       data: { labels: supports.map(x => x.name), datasets: [{ data: supports.map(x => x.payout), backgroundColor: chartColors(supports.length), borderRadius: 6 }] },
