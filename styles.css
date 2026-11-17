@@ -93,15 +93,16 @@ button { cursor: pointer; }
 }
 .filter-group input:focus, .filter-group select:focus { border-color: #93c5fd; box-shadow: 0 0 0 3px #dbeafe; background: #fff; }
 .filter-group select:disabled { opacity: .55; cursor: not-allowed; }
-.filter-rate-range { grid-column: 1 / -2; }
+.filter-payout-range { grid-column: span 2; }
 .rate-range-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.rate-range-heading label { margin: 8px 0 0; }
 .rate-range-heading output { color: var(--primary); font-size: .76rem; font-weight: 700; white-space: nowrap; }
-.rate-range-slider { position: relative; height: 28px; margin: 3px 8px 0; }
+.rate-range-slider { position: relative; height: 22px; margin: 0 8px; }
 .rate-range-track, .rate-range-selection { position: absolute; top: 50%; height: 6px; border-radius: 999px; transform: translateY(-50%); }
 .rate-range-track { right: 0; left: 0; background: #e2e8f0; }
 .rate-range-selection { background: var(--primary); }
 .filter-group .rate-range-slider input[type="range"] {
-  position: absolute; top: 0; left: 0; width: 100%; height: 28px; margin: 0; padding: 0;
+  position: absolute; top: 0; left: 0; width: 100%; height: 22px; margin: 0; padding: 0;
   appearance: none; -webkit-appearance: none; background: transparent; border: 0; pointer-events: none;
 }
 .rate-range-slider input[type="range"]:focus { outline: none; box-shadow: none; }
@@ -207,7 +208,7 @@ button { cursor: pointer; }
   .file-badge { max-width: 230px; }
   .filter-ribbon { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px 18px; }
   .filter-search-wrap { grid-column: 1 / -1; }
-  .filter-rate-range { grid-column: 1 / -1; }
+  .filter-payout-range { grid-column: span 2; }
   .tabbar { padding-left: 18px; padding-right: 18px; }
   .dashboard-content { padding: 18px; }
   .kpi-grid, .summary-strip, .dq-grid { grid-template-columns: repeat(2, 1fr); }
@@ -219,7 +220,7 @@ button { cursor: pointer; }
   .file-badge { display: none; }
   .filter-ribbon { grid-template-columns: 1fr; }
   .filter-search-wrap { grid-column: auto; }
-  .filter-rate-range { grid-column: auto; }
+  .filter-payout-range { grid-column: auto; }
   .kpi-grid, .summary-strip, .dq-grid { grid-template-columns: 1fr; }
   .empty-card { padding: 32px 18px; }
   .empty-card h2 { font-size: 1.35rem; }

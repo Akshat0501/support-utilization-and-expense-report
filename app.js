@@ -387,24 +387,13 @@
       }
       return true;
     };
-    state.supportFiltered = aggregate(state.projects, 'support').filter(support => {
-      if (support.payout < state.filters.rateMin || support.payout > state.filters.rateMax) return false;
-      if (state.filters.coordinator !== 'All' && !support.coordinators.has(state.filters.coordinator)) return false;
-      if (state.filters.support !== 'All' && support.name !== state.filters.support) return false;
-      if (state.filters.client !== 'All' && !support.clients.has(state.filters.client)) return false;
-      if (q) {
-        const haystack = `${support.name} ${[...support.clients, ...support.consultants, ...support.coordinators].join(' ')}`.toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-      return true;
-    });
-
     state.filtered = state.projects.filter(project =>
       matchesSharedFilters(project) &&
       (state.filters.tier === 'All' || project.tier === state.filters.tier) &&
       project.rate >= state.filters.rateMin &&
       project.rate <= state.filters.rateMax
     );
+    state.supportFiltered = aggregate(state.filtered, 'support');
 
     renderAll();
   }
@@ -430,7 +419,7 @@
     $('kpi-projects').textContent = formatNumber(projects.length);
     $('kpi-source-rows').textContent = `${formatNumber(state.parsedRows.length)} parsed source rows`;
     $('kpi-coordinators').textContent = formatNumber(new Set(projects.map(p => p.coordinator)).size);
-    $('kpi-support-count').textContent = `${formatNumber(state.supportFiltered.length)} support names in range`;
+    $('kpi-support-count').textContent = `${formatNumber(state.supportFiltered.length)} support names matching projects`;
     $('kpi-total-payout').textContent = formatINR(total);
     $('kpi-average-payout').textContent = formatINR(average);
     $('kpi-median-payout').textContent = `Median ${formatINR(median(rates))}`;
