@@ -597,7 +597,14 @@
       responsive: true,
       maintainAspectRatio: false,
       indexAxis: horizontal ? 'y' : 'x',
-      plugins: { legend: { display: false } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: context => formatINR(Number(horizontal ? context.parsed.x : context.parsed.y))
+          }
+        }
+      },
       scales: {
         x: horizontal ? { ticks: { callback: value => formatINR(Number(value)) } } : { ticks: { maxRotation: 45, minRotation: 0 } },
         y: horizontal ? { ticks: { autoSkip: false } } : { beginAtZero: true, ticks: { callback: value => formatINR(Number(value)) } }
