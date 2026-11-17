@@ -35,17 +35,32 @@
         <label for="filter-month">Month</label>
         <select id="filter-month"></select>
       </div>
-      <div class="filter-group">
-        <label for="filter-coordinator">Coordinator</label>
-        <select id="filter-coordinator"><option value="All">All Coordinators</option></select>
+      <div class="filter-group select-filter-group">
+        <label for="filter-coordinator-trigger">Coordinator</label>
+        <div class="select-filter-dropdown">
+          <button id="filter-coordinator-trigger" class="select-filter-trigger" type="button" aria-expanded="false" aria-controls="filter-coordinator-options">
+            <span id="filter-coordinator-label">All Coordinators</span><span class="payout-filter-chevron" aria-hidden="true">⌄</span>
+          </button>
+          <div id="filter-coordinator-options" class="select-filter-panel" role="group" aria-label="Coordinator options" hidden></div>
+        </div>
       </div>
-      <div class="filter-group">
-        <label for="filter-support">Support / Individual</label>
-        <select id="filter-support"><option value="All">All Support Names</option></select>
+      <div class="filter-group select-filter-group">
+        <label for="filter-support-trigger">Support / Individual</label>
+        <div class="select-filter-dropdown">
+          <button id="filter-support-trigger" class="select-filter-trigger" type="button" aria-expanded="false" aria-controls="filter-support-options">
+            <span id="filter-support-label">All Support Names</span><span class="payout-filter-chevron" aria-hidden="true">⌄</span>
+          </button>
+          <div id="filter-support-options" class="select-filter-panel" role="group" aria-label="Support options" hidden></div>
+        </div>
       </div>
-      <div class="filter-group">
-        <label for="filter-client">Client</label>
-        <select id="filter-client"><option value="All">All Clients</option></select>
+      <div class="filter-group select-filter-group">
+        <label for="filter-client-trigger">Client</label>
+        <div class="select-filter-dropdown">
+          <button id="filter-client-trigger" class="select-filter-trigger" type="button" aria-expanded="false" aria-controls="filter-client-options">
+            <span id="filter-client-label">All Clients</span><span class="payout-filter-chevron" aria-hidden="true">⌄</span>
+          </button>
+          <div id="filter-client-options" class="select-filter-panel" role="group" aria-label="Client options" hidden></div>
+        </div>
       </div>
       <div class="filter-group filter-payout-range">
         <label for="payout-filter-trigger">Project Payout Tier</label>

@@ -291,17 +291,46 @@
       .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
   }
 
-  function fillSelect(id, values, allLabel) {
-    const select = $(id);
-    const current = select.value;
-    select.innerHTML = `<option value="All">${esc(allLabel)}</option>` + values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
-    select.value = values.includes(current) ? current : 'All';
+  function populateFilters() {
+    populateSelectFilter('coordinator', uniqueValues('coordinator'), 'All Coordinators');
+    populateSelectFilter('support', uniqueValues('support'), 'All Support Names');
+    populateSelectFilter('client', uniqueValues('client'), 'All Clients');
   }
 
-  function populateFilters() {
-    fillSelect('filter-coordinator', uniqueValues('coordinator'), 'All Coordinators');
-    fillSelect('filter-support', uniqueValues('support'), 'All Support Names');
-    fillSelect('filter-client', uniqueValues('client'), 'All Clients');
+  function populateSelectFilter(filterName, values, allLabel) {
+    const panel = $(`filter-${filterName}-options`);
+    const options = [['All', allLabel], ...values.map(value => [value, value])];
+    panel.innerHTML = options.map(([value, label]) => `
+      <button type="button" class="select-filter-option" data-filter="${filterName}" data-value="${esc(value)}">${esc(label)}</button>
+    `).join('');
+    updateSelectFilterUI(filterName, allLabel);
+  }
+
+  function updateSelectFilterUI(filterName, allLabel) {
+    const selectedValue = state.filters[filterName];
+    const panel = $(`filter-${filterName}-options`);
+    const selectedOption = [...panel.querySelectorAll('.select-filter-option')]
+      .find(option => option.dataset.value === selectedValue);
+    const fallbackLabel = allLabel || panel.querySelector('[data-value="All"]')?.textContent || 'All';
+    $(`filter-${filterName}-label`).textContent = selectedOption?.textContent || fallbackLabel;
+    panel.querySelectorAll('.select-filter-option').forEach(option => {
+      const selected = option.dataset.value === selectedValue;
+      option.classList.toggle('is-selected', selected);
+      option.setAttribute('aria-pressed', String(selected));
+    });
+  }
+
+  function closeFilterDropdowns(exceptName = '') {
+    document.querySelectorAll('.select-filter-dropdown, .payout-filter-dropdown').forEach(dropdown => {
+      const isException = exceptName && dropdown.contains($(`filter-${exceptName}-trigger`) || $('payout-filter-trigger'));
+      if (isException) return;
+      const trigger = dropdown.querySelector('button[aria-expanded]');
+      const panel = dropdown.querySelector('[id$="-options"], #payout-filter-panel');
+      if (trigger && panel) {
+        panel.hidden = true;
+        trigger.setAttribute('aria-expanded', 'false');
+      }
+    });
   }
 
   function setRateRangeBounds() {
@@ -675,13 +704,14 @@
       setRateRangeBounds();
 
       $('filter-search').value = '';
-      $('filter-coordinator').value = 'All';
-      $('filter-support').value = 'All';
-      $('filter-client').value = 'All';
       $('filter-month').value = targetFile;
       badge.textContent = `${state.fileName} • ${state.projects.length} projects`;
 
       populateFilters();
+      ['coordinator', 'support', 'client'].forEach(filterName => {
+        state.filters[filterName] = 'All';
+        updateSelectFilterUI(filterName);
+      });
       updateTierFilterUI();
       showDashboard();
       applyFilters();
@@ -707,10 +737,9 @@
 
   function resetFilters() {
     state.filters = { search: '', coordinator: 'All', support: 'All', client: 'All', tier: 'All' };
+    closeFilterDropdowns();
     $('filter-search').value = '';
-    $('filter-coordinator').value = 'All';
-    $('filter-support').value = 'All';
-    $('filter-client').value = 'All';
+    ['coordinator', 'support', 'client'].forEach(filterName => updateSelectFilterUI(filterName));
     updateTierFilterUI();
     state.filters.rateMin = state.rateBounds.min;
     state.filters.rateMax = state.rateBounds.max;
@@ -741,36 +770,51 @@
   function setTierFilter(tier) {
     state.filters.tier = tier;
     updateTierFilterUI();
-    $('payout-filter-panel').hidden = true;
-    $('payout-filter-trigger').setAttribute('aria-expanded', 'false');
+    closeFilterDropdowns();
     applyFilters();
   }
 
   function setupEvents() {
     $('filter-search').addEventListener('input', event => { state.filters.search = event.target.value.trim(); applyFilters(); });
     $('filter-month').addEventListener('change', event => { loadDataFile(event.target.value); });
-    $('filter-coordinator').addEventListener('change', event => { state.filters.coordinator = event.target.value; applyFilters(); });
-    $('filter-support').addEventListener('change', event => { state.filters.support = event.target.value; applyFilters(); });
-    $('filter-client').addEventListener('change', event => { state.filters.client = event.target.value; applyFilters(); });
+    ['coordinator', 'support', 'client'].forEach(filterName => {
+      $(`filter-${filterName}-trigger`).addEventListener('click', () => {
+        const panel = $(`filter-${filterName}-options`);
+        const shouldOpen = panel.hidden;
+        closeFilterDropdowns(filterName);
+        panel.hidden = !shouldOpen;
+        $(`filter-${filterName}-trigger`).setAttribute('aria-expanded', String(shouldOpen));
+      });
+    });
     $('payout-filter-trigger').addEventListener('click', () => {
       const panel = $('payout-filter-panel');
-      panel.hidden = !panel.hidden;
-      $('payout-filter-trigger').setAttribute('aria-expanded', String(!panel.hidden));
+      const shouldOpen = panel.hidden;
+      closeFilterDropdowns('payout');
+      panel.hidden = !shouldOpen;
+      $('payout-filter-trigger').setAttribute('aria-expanded', String(shouldOpen));
     });
     document.querySelectorAll('.payout-tier-option').forEach(button => {
       button.addEventListener('click', () => setTierFilter(button.dataset.tier));
     });
     document.addEventListener('click', event => {
-      if (!event.target.closest('.payout-filter-dropdown')) {
-        $('payout-filter-panel').hidden = true;
-        $('payout-filter-trigger').setAttribute('aria-expanded', 'false');
+      const option = event.target.closest('.select-filter-option');
+      if (option) {
+        const filterName = option.dataset.filter;
+        state.filters[filterName] = option.dataset.value;
+        updateSelectFilterUI(filterName);
+        closeFilterDropdowns();
+        applyFilters();
+        return;
       }
+      if (!event.target.closest('.select-filter-dropdown, .payout-filter-dropdown')) closeFilterDropdowns();
     });
     document.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && !$('payout-filter-panel').hidden) {
-        $('payout-filter-panel').hidden = true;
-        $('payout-filter-trigger').setAttribute('aria-expanded', 'false');
-        $('payout-filter-trigger').focus();
+      if (event.key === 'Escape') {
+        const openDropdown = document.querySelector('.select-filter-dropdown [aria-expanded="true"], .payout-filter-dropdown [aria-expanded="true"]');
+        if (openDropdown) {
+          closeFilterDropdowns();
+          openDropdown.focus();
+        }
       }
     });
     $('filter-rate-min').addEventListener('input', event => updateRateFilter(event.target));
