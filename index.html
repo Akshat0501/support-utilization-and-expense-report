@@ -63,7 +63,7 @@
         </div>
       </div>
       <div class="filter-group filter-payout-range">
-        <label for="payout-filter-trigger">Project Payout Tier</label>
+        <label for="payout-filter-trigger">Payout Filters</label>
         <div class="payout-filter-dropdown">
           <button id="payout-filter-trigger" class="payout-filter-trigger" type="button" aria-expanded="false" aria-controls="payout-filter-panel">
             <span id="payout-filter-label">All Tiers</span><span class="payout-filter-chevron" aria-hidden="true">⌄</span>
@@ -72,15 +72,15 @@
             <section class="payout-range-section" aria-labelledby="payout-range-title">
               <div class="payout-filter-section-title" id="payout-range-title">Filter</div>
               <div class="rate-range-heading">
-                <label for="filter-rate-min">Project payout range</label>
+                <label for="filter-rate-min">Support total payout</label>
                 <output id="filter-rate-value" aria-live="polite">All rates</output>
               </div>
-              <div class="rate-range-slider" role="group" aria-label="Refine project payout range">
+              <div class="rate-range-slider" role="group" aria-label="Refine support total payout range">
                 <div class="rate-range-track"><div id="filter-rate-selection" class="rate-range-selection"></div></div>
-                <input id="filter-rate-min" type="range" min="0" max="1000" step="1000" value="0" aria-label="Minimum payout rate" />
-                <input id="filter-rate-max" type="range" min="0" max="1000" step="1000" value="1000" aria-label="Maximum payout rate" />
+                <input id="filter-rate-min" type="range" min="0" max="500000" step="1000" value="0" aria-label="Minimum support total payout" />
+                <input id="filter-rate-max" type="range" min="0" max="500000" step="1000" value="500000" aria-label="Maximum support total payout, with the maximum representing five lakh plus" />
               </div>
-              <small id="filter-rate-bounds" class="rate-range-bounds">Refine the project payout range.</small>
+              <small id="filter-rate-bounds" class="rate-range-bounds">Support total includes all projects in the selected month; the maximum is ₹5 Lakh+.</small>
             </section>
             <div class="payout-filter-section-title payout-tier-title">Payout tiers</div>
             <div class="payout-tier-options" aria-label="Preset project payout tiers">
@@ -98,9 +98,9 @@
     </section>
 
     <nav class="tabbar" aria-label="Dashboard sections">
-      <button class="nav-tab active" data-tab="overview">Overview</button>
+      <button class="nav-tab" data-tab="overview">Overview</button>
       <button class="nav-tab" data-tab="coordinators">Coordinators</button>
-      <button class="nav-tab" data-tab="support">Support / Individual</button>
+      <button class="nav-tab active" data-tab="support">Support / Individual</button>
       <button class="nav-tab" data-tab="clients">Clients</button>
       <button class="nav-tab" data-tab="consultants">Consultants</button>
       <button class="nav-tab" data-tab="dq">Data Quality</button>
@@ -136,7 +136,7 @@
         </article>
       </section>
 
-      <section id="tab-overview" class="tab-content">
+      <section id="tab-overview" class="tab-content is-hidden">
         <div class="summary-strip">
           <div><span>Loaded file</span><strong id="summary-file">—</strong></div>
           <div><span>Parsed records</span><strong id="summary-records">0</strong></div>
@@ -178,14 +178,14 @@
         </article>
       </section>
 
-      <section id="tab-support" class="tab-content is-hidden">
+      <section id="tab-support" class="tab-content">
         <div class="grid-2">
           <article class="dashboard-card">
-            <div class="card-header"><div><h3>Support / Individual Payout</h3><p>Top support names by total payout</p></div></div>
+            <div class="card-header"><div><h3>Support / Individual Payout</h3><p>Support total payout across all projects</p></div></div>
             <div class="chart-container"><canvas id="chart-support-detail"></canvas></div>
           </article>
           <article class="dashboard-card">
-            <div class="card-header"><div><h3>Support Coverage</h3><p>Projects and clients managed by each support name</p></div></div>
+            <div class="card-header"><div><h3>Support Coverage</h3><p>Clients and projects matching each support's total payout range</p></div></div>
             <div id="table-support" class="table-container"></div>
           </article>
         </div>

@@ -45,7 +45,7 @@
     supportFiltered: [],
     qualityIssues: [],
     duplicateGroups: 0,
-    activeTab: 'overview',
+    activeTab: 'support',
     charts: {},
     rateBounds: { min: 0, max: RATE_RANGE_MAX },
     filters: {
@@ -55,7 +55,7 @@
       client: 'All',
       tier: 'All',
       rateMin: 0,
-      rateMax: RATE_RANGE_STEP
+      rateMax: RATE_RANGE_MAX
     }
   };
 
@@ -350,8 +350,14 @@
     maxInput.max = String(max);
     maxInput.step = String(RATE_RANGE_STEP);
     maxInput.value = String(max);
-    $('filter-rate-bounds').textContent = `Range: ${formatINR(min)} – ${formatINR(max)}`;
+    $('filter-rate-bounds').textContent = `Support totals include all projects in the selected month; range: ${formatRateRange(min, max)}.`;
     updateRateRangeDisplay();
+  }
+
+  function formatRateRange(min, max) {
+    if (min === state.rateBounds.max && max === state.rateBounds.max) return '₹5 Lakh+';
+    const upperBound = max === state.rateBounds.max ? '₹5 Lakh+' : formatINR(max);
+    return `${formatINR(min)} – ${upperBound}`;
   }
 
   function updateRateRangeDisplay() {
@@ -363,7 +369,7 @@
 
     minInput.max = String(state.filters.rateMax);
     maxInput.min = String(state.filters.rateMin);
-    $('filter-rate-value').textContent = `${formatINR(state.filters.rateMin)} – ${formatINR(state.filters.rateMax)}`;
+    $('filter-rate-value').textContent = formatRateRange(state.filters.rateMin, state.filters.rateMax);
     $('filter-rate-selection').style.left = `${minPosition}%`;
     $('filter-rate-selection').style.width = `${maxPosition - minPosition}%`;
   }
@@ -406,6 +412,15 @@
 
   function applyFilters() {
     const q = state.filters.search.toLowerCase();
+    const supportTotals = new Map(aggregate(state.projects, 'support').map(support => [support.name, support]));
+    const matchingSupports = new Set(
+      [...supportTotals.values()]
+        .filter(support =>
+          support.payout >= state.filters.rateMin &&
+          (state.filters.rateMax === state.rateBounds.max || support.payout <= state.filters.rateMax)
+        )
+        .map(support => support.name)
+    );
     const matchesSharedFilters = project => {
       if (state.filters.coordinator !== 'All' && project.coordinator !== state.filters.coordinator) return false;
       if (state.filters.support !== 'All' && project.support !== state.filters.support) return false;
@@ -418,11 +433,17 @@
     };
     state.filtered = state.projects.filter(project =>
       matchesSharedFilters(project) &&
-      (state.filters.tier === 'All' || project.tier === state.filters.tier) &&
-      project.rate >= state.filters.rateMin &&
-      project.rate <= state.filters.rateMax
+      matchingSupports.has(project.support) &&
+      (state.filters.tier === 'All' || project.tier === state.filters.tier)
     );
     state.supportFiltered = aggregate(state.filtered, 'support');
+    state.supportFiltered.forEach(support => {
+      const total = supportTotals.get(support.name);
+      if (total) {
+        support.payout = total.payout;
+        support.rates = total.rates;
+      }
+    });
 
     renderAll();
   }
@@ -536,8 +557,8 @@
     const rows = state.supportFiltered;
     $('table-support').innerHTML = `
       <table class="data-table">
-        <thead><tr><th>Support / Individual</th><th class="num">Projects</th><th class="num">Clients</th><th class="num">Consultants</th><th class="num">Total Payout</th><th class="num">Avg Payout</th></tr></thead>
-        <tbody>${rows.map(x => `<tr><td><strong>${esc(x.name)}</strong></td><td class="num">${x.projects}</td><td class="num">${x.clients.size}</td><td class="num">${x.consultants.size}</td><td class="num money">${formatINR(x.payout)}</td><td class="num">${x.rates ? formatINR(x.payout / x.rates) : '—'}</td></tr>`).join('') || '<tr><td colspan="6" class="empty-cell">No matching records</td></tr>'}</tbody>
+        <thead><tr><th>Support / Individual</th><th class="num">Matching Projects</th><th>Matching Clients</th><th class="num">Consultants</th><th class="num">Total Payout (All Projects)</th><th class="num">Avg / Project</th></tr></thead>
+        <tbody>${rows.map(x => `<tr><td><strong>${esc(x.name)}</strong></td><td class="num">${x.projects}</td><td class="client-list">${[...x.clients].map(esc).join(', ') || '—'}</td><td class="num">${x.consultants.size}</td><td class="num money">${formatINR(x.payout)}</td><td class="num">${x.rates ? formatINR(x.payout / x.rates) : '—'}</td></tr>`).join('') || '<tr><td colspan="6" class="empty-cell">No matching records</td></tr>'}</tbody>
       </table>`;
   }
 

@@ -216,6 +216,7 @@ button { cursor: pointer; }
   color: #475569; background: #f8fafc; padding: 10px 11px; border-bottom: 1px solid var(--border); font-weight: 700;
 }
 .data-table td { padding: 10px 11px; border-bottom: 1px solid #eef2f7; white-space: nowrap; vertical-align: middle; }
+.data-table td.client-list { min-width: 180px; white-space: normal; }
 .data-table tbody tr:hover { background: #f8fafc; }
 .data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .data-table .money { color: #1d4ed8; font-weight: 700; }
